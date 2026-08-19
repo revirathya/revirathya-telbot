@@ -16,6 +16,7 @@ import (
 	"github.com/revirathya/revirathya-telbot/internal/config"
 	"github.com/revirathya/revirathya-telbot/internal/domain"
 	"github.com/revirathya/revirathya-telbot/internal/handler"
+	"github.com/revirathya/revirathya-telbot/internal/handler/subflow"
 )
 
 // Main
@@ -53,10 +54,13 @@ func main() {
 	convExpenseRecord := handler.NewConversationExpenseRecord(tbh, user)
 	convExpenseList := handler.NewConversationExpenseList(tbh, user)
 
+	// Subflow: Calendar
+	sfCalendar := subflow.NewCalendar(tbh, user)
+
 	// API handler
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
-	r.Post("/", func(w http.ResponseWriter, r *http.Request) {
+	r.Post("/webhook", func(w http.ResponseWriter, r *http.Request) {
 		var reqBody tgbotapi.Update
 		if err := json.NewDecoder(r.Body).Decode(&reqBody); err != nil {
 			slog.Error("invalid body request: %s", "error", err.Error())
@@ -125,12 +129,24 @@ func main() {
 				// State: init
 				if reqBody.CallbackQuery != nil {
 					// Handler: Callback Query
-					_ = reqBody.CallbackQuery.Message.Chat.ID
-					_ = reqBody.CallbackQuery.Message.MessageID
 					data := reqBody.CallbackQuery.Data
 
 					if strings.HasPrefix(data, "date=") {
 						logHandleInput = convExpenseRecord.InteractionSelectCategory(CATEGORIES, data)
+					} else if data == "calendar" {
+						logHandleInput = sfCalendar.Init("date=")
+					}
+				}
+			case "calendar":
+				// State: calendar
+				if reqBody.CallbackQuery != nil {
+					// Handler: Callback Query
+					data := reqBody.CallbackQuery.Data
+
+					if strings.HasPrefix(data, "date=") {
+						logHandleInput = convExpenseRecord.InteractionSelectCategory(CATEGORIES, data)
+					} else {
+						logHandleInput = sfCalendar.Init("date=")
 					}
 				}
 			case "select-category":
@@ -187,6 +203,20 @@ func main() {
 
 					if strings.HasPrefix(data, "date=") {
 						logHandleInput = convExpenseList.Closure(expenseList, data)
+					} else if data == "calendar" {
+						logHandleInput = sfCalendar.Init("date=")
+					}
+				}
+			case "calendar":
+				// State: calendar
+				if reqBody.CallbackQuery != nil {
+					// Handler: Callback Query
+					data := reqBody.CallbackQuery.Data
+
+					if strings.HasPrefix(data, "date=") {
+						logHandleInput = convExpenseList.Closure(expenseList, data)
+					} else {
+						logHandleInput = sfCalendar.Init("date=")
 					}
 				}
 			}

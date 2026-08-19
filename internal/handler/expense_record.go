@@ -10,6 +10,7 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/revirathya/revirathya-telbot/infra/telegram"
 	"github.com/revirathya/revirathya-telbot/internal/domain"
+	"github.com/revirathya/revirathya-telbot/internal/utils"
 )
 
 type ConversationExpenseRecord struct {
@@ -34,10 +35,16 @@ func (c *ConversationExpenseRecord) Entry(chatID int64, messageID int) string {
 	}, "\n\n")
 
 	// Set Reply Markup
-	todayStr := fmt.Sprintf("date=%s", time.Now().Format("2006-01-02"))
 	inlineKeyboardMarkup := &tgbotapi.InlineKeyboardMarkup{
 		InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
-			{{Text: "Today", CallbackData: &todayStr}},
+			{{
+				Text:         "Today",
+				CallbackData: utils.ToStrPtr(fmt.Sprintf("date=%s", time.Now().Format("2006-01-02"))),
+			}},
+			{{
+				Text:         "Pick a Date",
+				CallbackData: utils.ToStrPtr("calendar"),
+			}},
 		},
 	}
 
