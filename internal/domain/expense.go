@@ -42,7 +42,7 @@ func (e *Expense) FormatMessage() string {
 	}
 
 	if e.Amount != 0 {
-		tokens = append(tokens, fmt.Sprintf("<b>Amount</b>: %s", humanize.Comma(e.Amount)))
+		tokens = append(tokens, fmt.Sprintf("<b>Amount</b>: Rp %s", humanize.Comma(e.Amount)))
 	}
 
 	return strings.Join(tokens, "\n")
