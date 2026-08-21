@@ -134,15 +134,15 @@ func (c *Calendar) Init(callbackPrefix string, refDateStr string) string {
 	calNav := c.newCalendarNavigation(refDate)
 
 	// Set Reply Markup
-	inlineKeyboard := make([][]tgbotapi.InlineKeyboardButton, 0)
-	inlineKeyboard = append(inlineKeyboard, calHeader...)
-	inlineKeyboard = append(inlineKeyboard, calBody...)
-	inlineKeyboard = append(inlineKeyboard, calNav)
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0)
+	rows = append(rows, calHeader...)
+	rows = append(rows, calBody...)
+	rows = append(rows, calNav)
 
-	inlineKeyboardMarkup := &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: inlineKeyboard}
+	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(rows...)
 
 	// Edit Message
-	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, inlineKeyboardMarkup); err != nil {
+	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
 		slog.Error("failed to edit telegram message")
 	}
 
