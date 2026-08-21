@@ -55,7 +55,11 @@ func main() {
 	convExpenseList := handler.NewConversationExpenseList(tbh, user)
 
 	// Subflow: Calendar
-	sfCalendar := subflow.NewCalendar(tbh, user)
+	sfCalendar, err := subflow.NewCalendar(tbh, user)
+	if err != nil {
+		slog.Error("failed when init calendar: %s", "error", err.Error())
+		return
+	}
 
 	// API handler
 	r := chi.NewRouter()
@@ -115,9 +119,10 @@ func main() {
 					messageID := reqBody.CallbackQuery.Message.MessageID
 					data := reqBody.CallbackQuery.Data
 
-					if data == "expense-record" {
+					switch data {
+					case "expense-record":
 						logHandleInput = convExpenseRecord.Entry(chatID, messageID)
-					} else if data == "expense-list" {
+					case "expense-list":
 						logHandleInput = convExpenseList.Entry(chatID, messageID)
 					}
 				}
@@ -133,8 +138,9 @@ func main() {
 
 					if strings.HasPrefix(data, "date=") {
 						logHandleInput = convExpenseRecord.InteractionSelectCategory(CATEGORIES, data)
-					} else if data == "calendar" {
-						logHandleInput = sfCalendar.Init("date=")
+					} else if strings.HasPrefix(data, "calendar=") {
+						refDate := strings.Split(data, "=")[1]
+						logHandleInput = sfCalendar.Init("date=", refDate)
 					}
 				}
 			case "calendar":
@@ -145,8 +151,9 @@ func main() {
 
 					if strings.HasPrefix(data, "date=") {
 						logHandleInput = convExpenseRecord.InteractionSelectCategory(CATEGORIES, data)
-					} else {
-						logHandleInput = sfCalendar.Init("date=")
+					} else if strings.HasPrefix(data, "calendar=") {
+						refDate := strings.Split(data, "=")[1]
+						logHandleInput = sfCalendar.Init("date=", refDate)
 					}
 				}
 			case "select-category":
@@ -203,8 +210,9 @@ func main() {
 
 					if strings.HasPrefix(data, "date=") {
 						logHandleInput = convExpenseList.Closure(expenseList, data)
-					} else if data == "calendar" {
-						logHandleInput = sfCalendar.Init("date=")
+					} else if strings.HasPrefix(data, "calendar=") {
+						refDate := strings.Split(data, "=")[1]
+						logHandleInput = sfCalendar.Init("date=", refDate)
 					}
 				}
 			case "calendar":
@@ -215,8 +223,9 @@ func main() {
 
 					if strings.HasPrefix(data, "date=") {
 						logHandleInput = convExpenseList.Closure(expenseList, data)
-					} else {
-						logHandleInput = sfCalendar.Init("date=")
+					} else if strings.HasPrefix(data, "calendar=") {
+						refDate := strings.Split(data, "=")[1]
+						logHandleInput = sfCalendar.Init("date=", refDate)
 					}
 				}
 			}

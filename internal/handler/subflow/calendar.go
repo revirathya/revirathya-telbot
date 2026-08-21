@@ -1,7 +1,10 @@
 package subflow
 
 import (
+	"fmt"
 	"log/slog"
+	"math"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/revirathya/revirathya-telbot/infra/telegram"
@@ -10,92 +13,131 @@ import (
 )
 
 type Calendar struct {
-	Telbot *telegram.TelegramBotHandler
-	User   *domain.UserContext
+	Telbot   *telegram.TelegramBotHandler
+	User     *domain.UserContext
+	Timezone *time.Location
 }
 
-func NewCalendar(tbh *telegram.TelegramBotHandler, user *domain.UserContext) *Calendar {
-	return &Calendar{
-		Telbot: tbh,
-		User:   user,
+type CalendarConfig struct {
+	TotalDays int
+	Padding   int
+	TotalRows int
+}
+
+func NewCalendar(tbh *telegram.TelegramBotHandler, user *domain.UserContext) (*Calendar, error) {
+	tz, err := time.LoadLocation("Asia/Jakarta")
+	if err != nil {
+		return nil, err
 	}
+
+	return &Calendar{
+		Telbot:   tbh,
+		User:     user,
+		Timezone: tz,
+	}, nil
 }
 
-func (c *Calendar) Init(callbackPrefix string) string {
+// Private
+func (c *Calendar) getCalendarConfig(refDate time.Time) CalendarConfig {
+	cfg := CalendarConfig{}
+
+	// Total Days
+	cfg.TotalDays = time.Date(refDate.Year(), refDate.Month()+1, 0, 0, 0, 0, 0, c.Timezone).Day()
+
+	// Padding
+	weekday := int(time.Date(refDate.Year(), refDate.Month(), 1, 0, 0, 0, 0, c.Timezone).Weekday())
+	cfg.Padding = (((weekday - 1) % 7) + 7) % 7 // Set Mon = 0 instead of Sun = 0. Mitigate negative modulo
+
+	// Total Rows
+	cfg.TotalRows = int(math.Ceil(float64(cfg.TotalDays+cfg.Padding) / 7))
+
+	return cfg
+}
+
+func (c *Calendar) newCalendarTitle(refDate time.Time) [][]tgbotapi.InlineKeyboardButton {
+	header := make([][]tgbotapi.InlineKeyboardButton, 0)
+
+	header = append(header, []tgbotapi.InlineKeyboardButton{
+		utils.NewEmptyInlineKeyboardButton(refDate.Format("Jan 2006")),
+	})
+	header = append(header, []tgbotapi.InlineKeyboardButton{
+		utils.NewEmptyInlineKeyboardButton("Mon"),
+		utils.NewEmptyInlineKeyboardButton("Tue"),
+		utils.NewEmptyInlineKeyboardButton("Wed"),
+		utils.NewEmptyInlineKeyboardButton("Thu"),
+		utils.NewEmptyInlineKeyboardButton("Fri"),
+		utils.NewEmptyInlineKeyboardButton("Sat"),
+		utils.NewEmptyInlineKeyboardButton("Sun"),
+	})
+
+	return header
+}
+
+func (c *Calendar) newCalendarButton(callbackPrefix string, year int, month time.Month, day int) tgbotapi.InlineKeyboardButton {
+	return tgbotapi.NewInlineKeyboardButtonData(
+		fmt.Sprintf("%02d", day),
+		fmt.Sprintf("%s%0d-%02d-%02d", callbackPrefix, year, int(month), day),
+	)
+}
+
+func (c *Calendar) newCalendarBody(callbackPrefix string, refDate time.Time) [][]tgbotapi.InlineKeyboardButton {
+	cfg := c.getCalendarConfig(refDate)
+
+	body := make([][]tgbotapi.InlineKeyboardButton, 0)
+	row := make([]tgbotapi.InlineKeyboardButton, 0, 7)
+	dayButton := tgbotapi.InlineKeyboardButton{}
+
+	iter := 1
+	padIter := 0
+	for range cfg.TotalRows {
+		row = nil
+		for range 7 {
+			// Create Button
+			if (padIter < cfg.Padding) || (iter > cfg.TotalDays) {
+				// Handle Start and End Pading button
+				dayButton = utils.NewEmptyInlineKeyboardButton(" ")
+				padIter += 1
+			} else {
+				// Handle Day button
+				dayButton = c.newCalendarButton(callbackPrefix, refDate.Year(), refDate.Month(), iter)
+				iter += 1
+			}
+
+			row = append(row, dayButton)
+		}
+		body = append(body, row)
+	}
+
+	return body
+}
+
+func (c *Calendar) newCalendarNavigation(refDate time.Time) []tgbotapi.InlineKeyboardButton {
+	prevMonth := refDate.AddDate(0, -1, 0)
+	nextMonth := refDate.AddDate(0, 1, 1)
+	nav := []tgbotapi.InlineKeyboardButton{
+		tgbotapi.NewInlineKeyboardButtonData("<", fmt.Sprintf("calendar=%s", prevMonth.Format("2006-01"))),
+		utils.NewEmptyInlineKeyboardButton(" "),
+		tgbotapi.NewInlineKeyboardButtonData(">", fmt.Sprintf("calendar=%s", nextMonth.Format("2006-01"))),
+	}
+	return nav
+}
+
+// Public
+func (c *Calendar) Init(callbackPrefix string, refDateStr string) string {
 	// Set Text
 	text := "Please select date below:"
 
 	// Build Calendar
-	calHeader := [][]tgbotapi.InlineKeyboardButton{{{Text: "Aug 2026", CallbackData: utils.EmptyCallback()}}}
-	calBody := [][]tgbotapi.InlineKeyboardButton{
-		{
-			{Text: " ", CallbackData: utils.EmptyCallback()},
-			{Text: " ", CallbackData: utils.EmptyCallback()},
-			{Text: " ", CallbackData: utils.EmptyCallback()},
-			{Text: " ", CallbackData: utils.EmptyCallback()},
-			{Text: " ", CallbackData: utils.EmptyCallback()},
-			{Text: "01", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-01")},
-			{Text: "02", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-02")},
-		},
-		{
-			{Text: "03", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-03")},
-			{Text: "04", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-04")},
-			{Text: "05", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-05")},
-			{Text: "06", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-06")},
-			{Text: "07", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-07")},
-			{Text: "08", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-08")},
-			{Text: "09", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-09")},
-		},
-		{
-			{Text: "10", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-10")},
-			{Text: "11", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-11")},
-			{Text: "12", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-12")},
-			{Text: "13", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-13")},
-			{Text: "14", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-14")},
-			{Text: "15", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-15")},
-			{Text: "16", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-16")},
-		},
-		{
-			{Text: "17", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-17")},
-			{Text: "18", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-18")},
-			{Text: "19", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-19")},
-			{Text: "20", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-20")},
-			{Text: "21", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-21")},
-			{Text: "22", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-22")},
-			{Text: "23", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-23")},
-		},
-		{
-			{Text: "24", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-24")},
-			{Text: "25", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-25")},
-			{Text: "26", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-26")},
-			{Text: "27", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-27")},
-			{Text: "28", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-28")},
-			{Text: "29", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-29")},
-			{Text: "30", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-30")},
-		},
-		{
-			{Text: "31", CallbackData: utils.ToStrPtr(callbackPrefix + "2026-08-31")},
-			{Text: " ", CallbackData: utils.EmptyCallback()},
-			{Text: " ", CallbackData: utils.EmptyCallback()},
-			{Text: " ", CallbackData: utils.EmptyCallback()},
-			{Text: " ", CallbackData: utils.EmptyCallback()},
-			{Text: " ", CallbackData: utils.EmptyCallback()},
-			{Text: " ", CallbackData: utils.EmptyCallback()},
-		},
-	}
-	calNav := [][]tgbotapi.InlineKeyboardButton{
-		{
-			{Text: "<", CallbackData: utils.ToStrPtr("date-picker=prev")},
-			{Text: " ", CallbackData: utils.EmptyCallback()},
-			{Text: ">", CallbackData: utils.ToStrPtr("date-picker=next")},
-		},
-	}
+	refDate, _ := time.ParseInLocation("2006-01", refDateStr, c.Timezone)
+	calHeader := c.newCalendarTitle(refDate)
+	calBody := c.newCalendarBody(callbackPrefix, refDate)
+	calNav := c.newCalendarNavigation(refDate)
 
 	// Set Reply Markup
 	inlineKeyboard := make([][]tgbotapi.InlineKeyboardButton, 0)
 	inlineKeyboard = append(inlineKeyboard, calHeader...)
 	inlineKeyboard = append(inlineKeyboard, calBody...)
-	inlineKeyboard = append(inlineKeyboard, calNav...)
+	inlineKeyboard = append(inlineKeyboard, calNav)
 
 	inlineKeyboardMarkup := &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: inlineKeyboard}
 

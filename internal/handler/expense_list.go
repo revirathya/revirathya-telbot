@@ -9,7 +9,6 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/revirathya/revirathya-telbot/infra/telegram"
 	"github.com/revirathya/revirathya-telbot/internal/domain"
-	"github.com/revirathya/revirathya-telbot/internal/utils"
 )
 
 type ConversationExpenseList struct {
@@ -32,21 +31,16 @@ func (c *ConversationExpenseList) Entry(chatID int64, messageID int) string {
 	}, "\n\n")
 
 	// Set Reply Markup
-	inlineKeyboardMarkup := &tgbotapi.InlineKeyboardMarkup{
-		InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
-			{{
-				Text:         "Today",
-				CallbackData: utils.ToStrPtr(fmt.Sprintf("date=%s", time.Now().Format("2006-01-02"))),
-			}},
-			{{
-				Text:         "Pick a Date",
-				CallbackData: utils.ToStrPtr("calendar"),
-			}},
-		},
-	}
+	todayDt := time.Now()
+	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Today", fmt.Sprintf("date=%s", todayDt.Format("2006-01-02"))),
+			tgbotapi.NewInlineKeyboardButtonData("Pick a Date", fmt.Sprintf("calendar=%s", todayDt.Format("2006-01"))),
+		),
+	)
 
 	// Edit Message
-	if _, err := c.Telbot.EditMessage(chatID, c.User.InteractionMessageID, text, inlineKeyboardMarkup); err != nil {
+	if _, err := c.Telbot.EditMessage(chatID, c.User.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
 		slog.Error("failed to edit telegram message")
 	}
 
@@ -60,14 +54,14 @@ func (c *ConversationExpenseList) Closure(expenseList []domain.Expense, data str
 	date := strings.Split(data, "=")[1]
 
 	var text string
-	var inlineKeyboardMarkup *tgbotapi.InlineKeyboardMarkup
+	var ptrInlineKeyboardMarkup *tgbotapi.InlineKeyboardMarkup
 
 	if len(expenseList) == 0 {
 		// Set Text
 		text = fmt.Sprintf("No recorded expenses found for selected date: %s", date)
 
 		// Set Reply Markup
-		inlineKeyboardMarkup = nil
+		ptrInlineKeyboardMarkup = nil
 	} else {
 		// Set Text
 		text = strings.Join([]string{
@@ -76,16 +70,18 @@ func (c *ConversationExpenseList) Closure(expenseList []domain.Expense, data str
 		}, "\n\n")
 
 		// Set Reply Markup
-		inlineKeyboard := make([][]tgbotapi.InlineKeyboardButton, 0)
+		rows := make([][]tgbotapi.InlineKeyboardButton, 0)
 		for _, exp := range expenseList {
-			value := fmt.Sprintf("expense=%d", exp.CategoryID) // TMP
-			inlineKeyboard = append(inlineKeyboard, []tgbotapi.InlineKeyboardButton{{Text: exp.FormatInline(), CallbackData: &value}})
+			rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+				tgbotapi.NewInlineKeyboardButtonData(exp.FormatInline(), fmt.Sprintf("expense=%d", exp.CategoryID)),
+			))
 		}
-		inlineKeyboardMarkup = &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: inlineKeyboard}
+		inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(rows...)
+		ptrInlineKeyboardMarkup = &inlineKeyboardMarkup
 	}
 
 	// Edit Message
-	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, inlineKeyboardMarkup); err != nil {
+	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, ptrInlineKeyboardMarkup); err != nil {
 		slog.Error("failed to edit telegram message")
 	}
 

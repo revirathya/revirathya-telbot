@@ -10,7 +10,6 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/revirathya/revirathya-telbot/infra/telegram"
 	"github.com/revirathya/revirathya-telbot/internal/domain"
-	"github.com/revirathya/revirathya-telbot/internal/utils"
 )
 
 type ConversationExpenseRecord struct {
@@ -35,21 +34,16 @@ func (c *ConversationExpenseRecord) Entry(chatID int64, messageID int) string {
 	}, "\n\n")
 
 	// Set Reply Markup
-	inlineKeyboardMarkup := &tgbotapi.InlineKeyboardMarkup{
-		InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
-			{{
-				Text:         "Today",
-				CallbackData: utils.ToStrPtr(fmt.Sprintf("date=%s", time.Now().Format("2006-01-02"))),
-			}},
-			{{
-				Text:         "Pick a Date",
-				CallbackData: utils.ToStrPtr("calendar"),
-			}},
-		},
-	}
+	today := time.Now()
+	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Today", fmt.Sprintf("date=%s", today.Format("2006-01-02"))),
+			tgbotapi.NewInlineKeyboardButtonData("Pick a Date", fmt.Sprintf("calendar=%s", today.Format("2006-01"))),
+		),
+	)
 
 	// Edit Message
-	if _, err := c.Telbot.EditMessage(chatID, c.User.InteractionMessageID, text, inlineKeyboardMarkup); err != nil {
+	if _, err := c.Telbot.EditMessage(chatID, c.User.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
 		slog.Error("failed to edit telegram message")
 	}
 
@@ -71,15 +65,16 @@ func (c *ConversationExpenseRecord) InteractionSelectCategory(categories []domai
 	}, "\n\n")
 
 	// Set Reply Markup
-	inlineKeyboard := make([][]tgbotapi.InlineKeyboardButton, 0)
+	rows := make([][]tgbotapi.InlineKeyboardButton, 0)
 	for _, ctg := range categories {
-		value := fmt.Sprintf("category=%d", ctg.ID)
-		inlineKeyboard = append(inlineKeyboard, []tgbotapi.InlineKeyboardButton{{Text: ctg.Label, CallbackData: &value}})
+		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData(ctg.Label, fmt.Sprintf("category=%d", ctg.ID)),
+		))
 	}
-	inlineKeyboardMarkup := &tgbotapi.InlineKeyboardMarkup{InlineKeyboard: inlineKeyboard}
+	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(rows...)
 
 	// Edit Message
-	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, inlineKeyboardMarkup); err != nil {
+	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
 		slog.Error("failed to edit telegram message")
 	}
 
@@ -126,15 +121,14 @@ func (c *ConversationExpenseRecord) InteractionInputAmount(text string) string {
 	}, "\n\n")
 
 	// Set Reply Markup
-	placeholderAmount := "amount=10000"
-	inlineKeyboardMarkup := &tgbotapi.InlineKeyboardMarkup{
-		InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
-			{{Text: "10.000", CallbackData: &placeholderAmount}},
-		},
-	}
+	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Rp 10.000", "amount=10000"),
+		),
+	)
 
 	// Edit Message
-	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, inlineKeyboardMarkup); err != nil {
+	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
 		slog.Error("failed to edit telegram message")
 	}
 
@@ -160,17 +154,17 @@ func (c *ConversationExpenseRecord) InteractionSelectConfirmation(data string) s
 	}, "\n\n")
 
 	// Set Reply Markup
-	yesVal := "confirmation=yes"
-	noVal := "confirmation=no"
-	replyMarkup := &tgbotapi.InlineKeyboardMarkup{
-		InlineKeyboard: [][]tgbotapi.InlineKeyboardButton{
-			{{Text: "Yes", CallbackData: &yesVal}},
-			{{Text: "No", CallbackData: &noVal}},
-		},
-	}
+	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("Yes", "confirmation=yes"),
+		),
+		tgbotapi.NewInlineKeyboardRow(
+			tgbotapi.NewInlineKeyboardButtonData("No", "confirmation=no"),
+		),
+	)
 
 	// Edit Message
-	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, replyMarkup); err != nil {
+	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
 		slog.Error("failed to edit telegram message")
 	}
 
