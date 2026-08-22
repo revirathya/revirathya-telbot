@@ -117,13 +117,13 @@ func (c *ConversationExpenseRecord) InteractionInputAmount(text string) string {
 	text = strings.Join([]string{
 		"<b>Record Expense</b>",
 		c.CreateExpense.FormatMessage(),
-		"Please select amount:",
+		"Please input amount:",
 	}, "\n\n")
 
 	// Set Reply Markup
 	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Rp 10.000", "amount=10000"),
+			tgbotapi.NewInlineKeyboardButtonData("Input Amount", "numpad=0"),
 		),
 	)
 

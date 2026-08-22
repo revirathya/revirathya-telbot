@@ -61,6 +61,9 @@ func main() {
 		return
 	}
 
+	// Subflow: Numpad
+	sfNumpad := subflow.NewNumpad(tbh, user)
+
 	// API handler
 	r := chi.NewRouter()
 	r.Use(middleware.Logger)
@@ -184,6 +187,9 @@ func main() {
 
 					if strings.HasPrefix(data, "amount=") {
 						logHandleInput = convExpenseRecord.InteractionSelectConfirmation(data)
+					} else if strings.HasPrefix(data, "numpad=") {
+						currAmount := strings.Split(data, "=")[1]
+						logHandleInput = sfNumpad.Init("amount=", currAmount)
 					}
 				}
 			case "select-confirmation":
