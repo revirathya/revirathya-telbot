@@ -2,6 +2,6 @@ package domain
 
 // Model: Category
 type Category struct {
-	ID    int64
+	ID    string
 	Label string
 }

@@ -73,10 +73,10 @@ func (c *Calendar) newCalendarTitle(refDate time.Time) [][]tgbotapi.InlineKeyboa
 	return header
 }
 
-func (c *Calendar) newCalendarButton(callbackPrefix string, year int, month time.Month, day int) tgbotapi.InlineKeyboardButton {
+func (c *Calendar) newCalendarDayButton(callbackPrefix string, year int, month time.Month, day int) tgbotapi.InlineKeyboardButton {
 	return tgbotapi.NewInlineKeyboardButtonData(
 		fmt.Sprintf("%02d", day),
-		fmt.Sprintf("%s%0d-%02d-%02d", callbackPrefix, year, int(month), day),
+		fmt.Sprintf("%s%d-%02d-%02d", callbackPrefix, year, int(month), day),
 	)
 }
 
@@ -99,7 +99,7 @@ func (c *Calendar) newCalendarBody(callbackPrefix string, refDate time.Time) [][
 				padIter += 1
 			} else {
 				// Handle Day button
-				dayButton = c.newCalendarButton(callbackPrefix, refDate.Year(), refDate.Month(), iter)
+				dayButton = c.newCalendarDayButton(callbackPrefix, refDate.Year(), refDate.Month(), iter)
 				iter += 1
 			}
 
@@ -115,9 +115,10 @@ func (c *Calendar) newCalendarNavigation(refDate time.Time) []tgbotapi.InlineKey
 	prevMonth := refDate.AddDate(0, -1, 0)
 	nextMonth := refDate.AddDate(0, 1, 1)
 	nav := []tgbotapi.InlineKeyboardButton{
-		tgbotapi.NewInlineKeyboardButtonData("<", fmt.Sprintf("calendar=%s", prevMonth.Format("2006-01"))),
+		// tgbotapi.NewInlineKeyboardButtonData("<", fmt.Sprintf("calendar=%s", prevMonth.Format("2006-01"))),
+		NewInlineCalendarButton("<", &prevMonth),
 		utils.NewEmptyInlineKeyboardButton(" "),
-		tgbotapi.NewInlineKeyboardButtonData(">", fmt.Sprintf("calendar=%s", nextMonth.Format("2006-01"))),
+		NewInlineCalendarButton("<", &nextMonth),
 	}
 	return nav
 }
@@ -149,4 +150,19 @@ func (c *Calendar) Init(callbackPrefix string, refDateStr string) string {
 	// Set User Context
 	c.User.ChangeState("calendar")
 	return "callback:calendar"
+}
+
+// Utility
+func NewInlineCalendarButton(label string, refDate *time.Time) tgbotapi.InlineKeyboardButton {
+	var dt time.Time
+	if refDate == nil {
+		dt = time.Now()
+	} else {
+		dt = *refDate
+	}
+
+	return tgbotapi.NewInlineKeyboardButtonData(
+		label,
+		fmt.Sprintf("calendar=%s", dt.Format("2006-01")),
+	)
 }

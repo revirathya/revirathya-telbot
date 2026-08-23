@@ -44,9 +44,9 @@ func main() {
 
 	// Data: Categories
 	var CATEGORIES []domain.Category = []domain.Category{
-		{ID: 1, Label: "Food - Daily"},
-		{ID: 2, Label: "Food - Snacks & Coffee"},
-		{ID: 3, Label: "Groceries"},
+		{ID: "1", Label: "Food - Daily"},
+		{ID: "2", Label: "Food - Snacks & Coffee"},
+		{ID: "3", Label: "Groceries"},
 	}
 
 	// Conversation: Handler
@@ -215,7 +215,7 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if strings.HasPrefix(data, "date=") {
-						logHandleInput = convExpenseList.Closure(expenseList, data)
+						logHandleInput = convExpenseList.SelectExpense(expenseList, data)
 					} else if strings.HasPrefix(data, "calendar=") {
 						refDate := strings.Split(data, "=")[1]
 						logHandleInput = sfCalendar.Init("date=", refDate)
@@ -228,7 +228,71 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if strings.HasPrefix(data, "date=") {
-						logHandleInput = convExpenseList.Closure(expenseList, data)
+						logHandleInput = convExpenseList.SelectExpense(expenseList, data)
+					} else if strings.HasPrefix(data, "calendar=") {
+						refDate := strings.Split(data, "=")[1]
+						logHandleInput = sfCalendar.Init("date=", refDate)
+					}
+				}
+
+			case "select-expense":
+				// State: select-expense
+				if reqBody.CallbackQuery != nil {
+					// Handler: Callback Query
+					_ = reqBody.CallbackQuery.Message.Chat.ID
+					_ = reqBody.CallbackQuery.Message.MessageID
+					data := reqBody.CallbackQuery.Data
+
+					if strings.HasPrefix(data, "expense=") {
+						logHandleInput = convExpenseList.PreviewExpense(expenseList, data, false)
+					} else if data == "done" {
+						logHandleInput = convExpenseList.Closure()
+					} else if strings.HasPrefix(data, "calendar=") {
+						refDate := strings.Split(data, "=")[1]
+						logHandleInput = sfCalendar.Init("date=", refDate)
+					}
+				}
+			case "preview-expense":
+				// State: preview-expense
+				if reqBody.CallbackQuery != nil {
+					// Handler: Callback Query
+					_ = reqBody.CallbackQuery.Message.Chat.ID
+					_ = reqBody.CallbackQuery.Message.MessageID
+					data := reqBody.CallbackQuery.Data
+
+					if data == "delete" {
+						logHandleInput = convExpenseList.ConfirmationDeleteExpense()
+					} else if data == "done" {
+						logHandleInput = convExpenseList.Closure()
+					} else if strings.HasPrefix(data, "date=") {
+						logHandleInput = convExpenseList.SelectExpense(expenseList, data)
+					}
+				}
+			case "delete-confirmation":
+				// State: delete-confirmation
+				if reqBody.CallbackQuery != nil {
+					// Handler: Callback Query
+					_ = reqBody.CallbackQuery.Message.Chat.ID
+					_ = reqBody.CallbackQuery.Message.MessageID
+					data := reqBody.CallbackQuery.Data
+
+					switch data {
+					case "confirmation=yes":
+						logHandleInput = convExpenseList.AfterDeleteExpense(expenseList)
+					case "confirmation=no":
+						logHandleInput = convExpenseList.PreviewExpense(nil, data, true)
+					}
+				}
+			case "after-delete":
+				// State: after-delete
+				if reqBody.CallbackQuery != nil {
+					// handler: Callback Query
+					_ = reqBody.CallbackQuery.Message.Chat.ID
+					_ = reqBody.CallbackQuery.Message.MessageID
+					data := reqBody.CallbackQuery.Data
+
+					if data == "done" {
+						logHandleInput = convExpenseList.Closure()
 					} else if strings.HasPrefix(data, "calendar=") {
 						refDate := strings.Split(data, "=")[1]
 						logHandleInput = sfCalendar.Init("date=", refDate)

@@ -5,11 +5,12 @@ import (
 	"log/slog"
 	"strconv"
 	"strings"
-	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/revirathya/revirathya-telbot/infra/telegram"
 	"github.com/revirathya/revirathya-telbot/internal/domain"
+	"github.com/revirathya/revirathya-telbot/internal/handler/subflow"
+	"github.com/revirathya/revirathya-telbot/internal/utils"
 )
 
 type ConversationExpenseRecord struct {
@@ -34,11 +35,10 @@ func (c *ConversationExpenseRecord) Entry(chatID int64, messageID int) string {
 	}, "\n\n")
 
 	// Set Reply Markup
-	today := time.Now()
 	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Today", fmt.Sprintf("date=%s", today.Format("2006-01-02"))),
-			tgbotapi.NewInlineKeyboardButtonData("Pick a Date", fmt.Sprintf("calendar=%s", today.Format("2006-01"))),
+			utils.NewInlineTodayButton("Today", "date="),
+			subflow.NewInlineCalendarButton("Pick a Date", nil),
 		),
 	)
 
@@ -68,7 +68,7 @@ func (c *ConversationExpenseRecord) InteractionSelectCategory(categories []domai
 	rows := make([][]tgbotapi.InlineKeyboardButton, 0)
 	for _, ctg := range categories {
 		rows = append(rows, tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData(ctg.Label, fmt.Sprintf("category=%d", ctg.ID)),
+			tgbotapi.NewInlineKeyboardButtonData(ctg.Label, fmt.Sprintf("category=%s", ctg.ID)),
 		))
 	}
 	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(rows...)
@@ -86,11 +86,7 @@ func (c *ConversationExpenseRecord) InteractionSelectCategory(categories []domai
 func (c *ConversationExpenseRecord) InteractionInputDescription(categories []domain.Category, data string) string {
 	// Update Create Expense Context
 	categoryID := strings.Split(data, "=")[1]
-	intCategoryID, err := strconv.ParseInt(categoryID, 10, 64)
-	if err != nil {
-		slog.Error("invalid int values", "value", categoryID)
-	}
-	c.CreateExpense.SetCategory(intCategoryID, categories)
+	c.CreateExpense.SetCategory(categoryID, categories)
 
 	// Set text
 	text := strings.Join([]string{
@@ -186,7 +182,14 @@ func (c *ConversationExpenseRecord) Closure(expenseList *[]domain.Expense, data 
 		}, "\n\n")
 
 		// Record expenses to storage
-		*expenseList = append(*expenseList, *c.CreateExpense)
+		expense := domain.CreateExpense(
+			c.CreateExpense.Date,
+			c.CreateExpense.CategoryID,
+			c.CreateExpense.CategoryLabel,
+			c.CreateExpense.Description,
+			c.CreateExpense.Amount,
+		)
+		*expenseList = append(*expenseList, expense)
 	case "no":
 		// Set Text
 		text = "Cancel record new expense"
