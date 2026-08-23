@@ -53,6 +53,7 @@ func main() {
 	convExpense := handler.NewConversationExpense(tbh, user)
 	convExpenseRecord := handler.NewConversationExpenseRecord(tbh, user)
 	convExpenseList := handler.NewConversationExpenseList(tbh, user)
+	convExpenseSummary := handler.NewConversationExpenseSummary(tbh, user)
 
 	// Subflow: Calendar
 	sfCalendar, err := subflow.NewCalendar(tbh, user)
@@ -127,6 +128,8 @@ func main() {
 						logHandleInput = convExpenseRecord.Entry(chatID, messageID)
 					case "expense-list":
 						logHandleInput = convExpenseList.Entry(chatID, messageID)
+					case "expense-summary":
+						logHandleInput = convExpenseSummary.Entry(chatID, messageID)
 					}
 				}
 			}
@@ -234,7 +237,6 @@ func main() {
 						logHandleInput = sfCalendar.Init("date=", refDate)
 					}
 				}
-
 			case "select-expense":
 				// State: select-expense
 				if reqBody.CallbackQuery != nil {
@@ -293,6 +295,65 @@ func main() {
 
 					if data == "done" {
 						logHandleInput = convExpenseList.Closure()
+					} else if strings.HasPrefix(data, "calendar=") {
+						refDate := strings.Split(data, "=")[1]
+						logHandleInput = sfCalendar.Init("date=", refDate)
+					}
+				}
+			}
+		case "expense-summary":
+			// Conversation: Expense Summary
+			switch user.State {
+			case "init":
+				// State: init
+				if reqBody.CallbackQuery != nil {
+					// Handler: Callback Query
+					_ = reqBody.CallbackQuery.Message.Chat.ID
+					_ = reqBody.CallbackQuery.Message.MessageID
+					data := reqBody.CallbackQuery.Data
+
+					if data == "summary=daily-expense" {
+						logHandleInput = convExpenseSummary.DailyExpenseFilterDate()
+					}
+				}
+			case "daily-expense-filter-date":
+				// State: init
+				if reqBody.CallbackQuery != nil {
+					// Handler: Callback Query
+					_ = reqBody.CallbackQuery.Message.Chat.ID
+					_ = reqBody.CallbackQuery.Message.MessageID
+					data := reqBody.CallbackQuery.Data
+
+					if strings.HasPrefix(data, "date=") {
+						logHandleInput = convExpenseSummary.DailyExpenseReport(expenseList, data)
+					} else if strings.HasPrefix(data, "calendar=") {
+						refDate := strings.Split(data, "=")[1]
+						logHandleInput = sfCalendar.Init("date=", refDate)
+					}
+				}
+			case "daily-expense-report":
+				// State: init
+				if reqBody.CallbackQuery != nil {
+					// Handler: Callback Query
+					_ = reqBody.CallbackQuery.Message.Chat.ID
+					_ = reqBody.CallbackQuery.Message.MessageID
+					data := reqBody.CallbackQuery.Data
+
+					if data == "done" {
+						logHandleInput = convExpenseSummary.Closure()
+					} else if strings.HasPrefix(data, "calendar=") {
+						refDate := strings.Split(data, "=")[1]
+						logHandleInput = sfCalendar.Init("date=", refDate)
+					}
+				}
+			case "calendar":
+				// State: calendar
+				if reqBody.CallbackQuery != nil {
+					// Handler: Callback Query
+					data := reqBody.CallbackQuery.Data
+
+					if strings.HasPrefix(data, "date=") {
+						logHandleInput = convExpenseSummary.DailyExpenseReport(expenseList, data)
 					} else if strings.HasPrefix(data, "calendar=") {
 						refDate := strings.Split(data, "=")[1]
 						logHandleInput = sfCalendar.Init("date=", refDate)

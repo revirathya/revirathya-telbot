@@ -118,7 +118,7 @@ func (c *Calendar) newCalendarNavigation(refDate time.Time) []tgbotapi.InlineKey
 		// tgbotapi.NewInlineKeyboardButtonData("<", fmt.Sprintf("calendar=%s", prevMonth.Format("2006-01"))),
 		NewInlineCalendarButton("<", &prevMonth),
 		utils.NewEmptyInlineKeyboardButton(" "),
-		NewInlineCalendarButton("<", &nextMonth),
+		NewInlineCalendarButton(">", &nextMonth),
 	}
 	return nav
 }
