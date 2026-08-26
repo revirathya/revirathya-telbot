@@ -2,7 +2,6 @@ package main
 
 import (
 	"encoding/json"
-	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -12,11 +11,12 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 
-	"github.com/revirathya/revirathya-telbot/infra/telegram"
 	"github.com/revirathya/revirathya-telbot/internal/config"
 	"github.com/revirathya/revirathya-telbot/internal/domain"
 	"github.com/revirathya/revirathya-telbot/internal/handler"
 	"github.com/revirathya/revirathya-telbot/internal/handler/subflow"
+	grpcCon "github.com/revirathya/revirathya-telbot/internal/platform/grpc"
+	"github.com/revirathya/revirathya-telbot/internal/platform/telegram"
 )
 
 // Main
@@ -35,7 +35,8 @@ func main() {
 	// Get Telegram Bot
 	tbh, err := telegram.GetBotWebhook(cfg.TelegramBotToken, cfg.TelegramWebhookURL)
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("failed to get webhook", "error", err)
+		os.Exit(1)
 	}
 
 	// Set User context
@@ -48,6 +49,14 @@ func main() {
 		{ID: "2", Label: "Food - Snacks & Coffee"},
 		{ID: "3", Label: "Groceries"},
 	}
+
+	// Set gRPC Servers
+	fincoreConn, err := grpcCon.NewFinanceCoreConn(cfg.FinanceCoreGRPC)
+	if err != nil {
+		slog.Error("failed to connect finance core grpc server", "error", err)
+		os.Exit(1)
+	}
+	defer fincoreConn.Close()
 
 	// Conversation: Handler
 	convExpense := handler.NewConversationExpense(tbh, user)

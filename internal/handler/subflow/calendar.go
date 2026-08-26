@@ -7,8 +7,8 @@ import (
 	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
-	"github.com/revirathya/revirathya-telbot/infra/telegram"
 	"github.com/revirathya/revirathya-telbot/internal/domain"
+	"github.com/revirathya/revirathya-telbot/internal/platform/telegram"
 	"github.com/revirathya/revirathya-telbot/internal/utils"
 )
 

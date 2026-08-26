@@ -3,8 +3,8 @@ package handler
 import (
 	"log/slog"
 
-	"github.com/revirathya/revirathya-telbot/infra/telegram"
 	"github.com/revirathya/revirathya-telbot/internal/domain"
+	"github.com/revirathya/revirathya-telbot/internal/platform/telegram"
 )
 
 func CommandCancel(tbh *telegram.TelegramBotHandler, user *domain.UserContext, chatID int64) string {

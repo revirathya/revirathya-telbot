@@ -12,6 +12,7 @@ type Config struct {
 	AppPort            string
 	TelegramBotToken   string
 	TelegramWebhookURL string
+	FinanceCoreGRPC    string
 }
 
 func getEnv(key string, fallback string) string {
@@ -21,6 +22,7 @@ func getEnv(key string, fallback string) string {
 	return fallback
 }
 
+// Loader
 func Load() (*Config, error) {
 	// Ignore error - .env not exists on 'prod'
 	_ = godotenv.Load()
@@ -31,6 +33,7 @@ func Load() (*Config, error) {
 	cfg.AppPort = getEnv("APP_PORT", "8080")
 	cfg.TelegramBotToken = getEnv("TELEGRAM_BOT_TOKEN", "")
 	cfg.TelegramWebhookURL = getEnv("TELEGRAM_WEBHOOK_URL", "")
+	cfg.FinanceCoreGRPC = getEnv("FINANCE_CORE_GRPC", "")
 
 	// Required config
 	if cfg.TelegramBotToken == "" {
@@ -39,6 +42,10 @@ func Load() (*Config, error) {
 
 	if cfg.TelegramWebhookURL == "" {
 		return nil, fmt.Errorf("TELEGRAM_WEBHOOK_URL is required")
+	}
+
+	if cfg.FinanceCoreGRPC == "" {
+		return nil, fmt.Errorf("FINANCE_CORE_GRPC is required")
 	}
 
 	return cfg, nil
