@@ -1,5 +1,10 @@
+# Env
 .env
 *.env
+
+# OS
+.DS_Store
+Thumbs.db
 
 # Binaries
 /bin/
@@ -7,9 +12,14 @@
 *.test
 *.out
 
-# IDE
+# Editor / IDE
 .vscode/
 .idea/
+*.swp
 
-# proto
-gen/*
+# Go workspace (local-only, don't commit unless intentional)
+go.work
+go.work.sum
+
+# proto: vendored codegen output, regenerate via `make proto-generate`
+gen/
