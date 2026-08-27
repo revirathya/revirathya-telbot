@@ -1,30 +1,40 @@
 package handler
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
-	"slices"
 	"strings"
+	"time"
 
 	"github.com/google/uuid"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/revirathya/revirathya-telbot/internal/domain"
+	"github.com/revirathya/revirathya-telbot/internal/handler/container"
 	"github.com/revirathya/revirathya-telbot/internal/handler/subflow"
 	"github.com/revirathya/revirathya-telbot/internal/platform/telegram"
+	ucExp "github.com/revirathya/revirathya-telbot/internal/usecase/expense"
+	ucUtel "github.com/revirathya/revirathya-telbot/internal/usecase/usercontext"
+
 	"github.com/revirathya/revirathya-telbot/internal/utils"
 )
 
 type ConversationExpenseList struct {
-	Telbot        *telegram.TelegramBotHandler
-	User          *domain.UserContext
-	ChosenExpense *domain.Expense
+	telbot *telegram.TelegramBotHandler
+	utelUc *ucUtel.UserTelegramContextUsecase
+	expUc  *ucExp.ExpenseUsecase
 }
 
-func NewConversationExpenseList(tbh *telegram.TelegramBotHandler, user *domain.UserContext) *ConversationExpenseList {
+func NewConversationExpenseList(
+	tbh *telegram.TelegramBotHandler,
+	utelUc *ucUtel.UserTelegramContextUsecase,
+	expUc *ucExp.ExpenseUsecase,
+) *ConversationExpenseList {
 	return &ConversationExpenseList{
-		Telbot: tbh,
-		User:   user,
+		telbot: tbh,
+		utelUc: utelUc,
+		expUc:  expUc,
 	}
 }
 
@@ -34,9 +44,13 @@ func (c *ConversationExpenseList) newExpenseList(expenseList []domain.Expense) [
 
 	// Expenses
 	for _, exp := range expenseList {
+		ec := container.NewFromDomain(&exp)
 		rows = append(rows,
 			tgbotapi.NewInlineKeyboardRow(
-				tgbotapi.NewInlineKeyboardButtonData(exp.FormatInline(), fmt.Sprintf("expense=%s", exp.ID)),
+				tgbotapi.NewInlineKeyboardButtonData(
+					ec.FormatInline(),
+					fmt.Sprintf("expense=%s", exp.ID),
+				),
 			))
 	}
 
@@ -53,33 +67,8 @@ func (c *ConversationExpenseList) newExpenseList(expenseList []domain.Expense) [
 	return rows
 }
 
-func (c *ConversationExpenseList) deleteExpense(expenseList []domain.Expense, id uuid.UUID) []domain.Expense {
-	// Find index
-	deleteIdx := slices.IndexFunc(expenseList, func(e domain.Expense) bool {
-		return e.ID == id
-	})
-
-	// Delete by index
-	deletedExpenseList := slices.Delete(expenseList, deleteIdx, deleteIdx+1)
-	return deletedExpenseList
-}
-
-func (c *ConversationExpenseList) getExpense(expenseList []domain.Expense, expenseID string) domain.Expense {
-	pExpenseID, _ := uuid.Parse(expenseID)
-
-	var expense domain.Expense
-	for _, e := range expenseList {
-		if e.ID == pExpenseID {
-			expense = e
-			break
-		}
-	}
-
-	return expense
-}
-
 // Public
-func (c *ConversationExpenseList) Entry(chatID int64, messageID int) string {
+func (c *ConversationExpenseList) Entry(ctx context.Context, user *domain.UserTelegramContext, chatID int64, messageID int, data string) string {
 	// Set Text
 	text := strings.Join([]string{
 		"<b>List Expense</b>",
@@ -95,42 +84,44 @@ func (c *ConversationExpenseList) Entry(chatID int64, messageID int) string {
 	)
 
 	// Edit Message
-	if _, err := c.Telbot.EditMessage(chatID, c.User.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
-		slog.Error("failed to edit telegram message")
+	if _, err := c.telbot.EditMessage(chatID, messageID, text, &inlineKeyboardMarkup); err != nil {
+		slog.Error("failed to edit telegram message", "error", err)
 	}
 
 	// Update User Context
-	c.User.StartConversation("expense-list", chatID, messageID)
-	return "callback:expense-list"
+	if _, err := c.utelUc.StartConversation(ctx, user.UserID, "expense-list", chatID, messageID); err != nil {
+		slog.Error("failed to start conversation", "error", err)
+	}
+	return fmt.Sprintf("callback:%s", data)
 }
 
-func (c *ConversationExpenseList) SelectExpense(expenseList []domain.Expense, data string) string {
-	// Set Text
-	date := strings.Split(data, "=")[1]
-
-	var text string
-	expensesButton := make([][]tgbotapi.InlineKeyboardButton, 0, len(expenseList))
-
-	// Get Expenses
-	expenses := make([]domain.Expense, 0)
-	for _, e := range expenseList {
-		if e.Date == date {
-			expenses = append(expenses, e)
-		}
+func (c *ConversationExpenseList) SelectExpense(ctx context.Context, user *domain.UserTelegramContext, data string) string {
+	trxDate, err := time.Parse("2006-01-02", strings.Split(data, "=")[1])
+	if err != nil {
+		slog.Error("invalid transaction_dt Date format", "error", err)
 	}
 
+	// Get Expenses
+	expenses, err := c.expUc.ListExpenses(ctx, user.UserID, trxDate)
+	if err != nil {
+		slog.Error("failed to list expenses", "error", err)
+	}
+
+	expensesButton := make([][]tgbotapi.InlineKeyboardButton, 0, len(expenses))
+
+	var text string
 	if len(expenses) == 0 {
 		// Set Text
-		text = fmt.Sprintf("No recorded expenses found for selected date: %s", date)
+		text = fmt.Sprintf("No recorded expenses found for selected date: %s", trxDate.Format("2006-01-02"))
 	} else {
 		// Set Text
 		text = strings.Join([]string{
 			"<b>Expense List</b>",
-			fmt.Sprintf("Recorded expenses for %s", date),
+			fmt.Sprintf("Recorded expenses for %s", trxDate.Format("2006-01-02")),
 		}, "\n\n")
 
 		// Get Expense List buttons
-		expensesButton = c.newExpenseList(expenseList)
+		expensesButton = c.newExpenseList(expenses)
 	}
 
 	utilityButton := tgbotapi.NewInlineKeyboardRow(
@@ -145,65 +136,84 @@ func (c *ConversationExpenseList) SelectExpense(expenseList []domain.Expense, da
 	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(rows...)
 
 	// Edit Message
-	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
-		slog.Error("failed to edit telegram message")
+	if _, err := c.telbot.EditMessage(*user.InteractionChatID, *user.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
+		slog.Error("failed to edit telegram message", "error", err)
 	}
 
 	// Set User Context
-	c.User.ChangeState("select-expense")
+	if _, err := c.utelUc.ChangeState(ctx, user.UserID, "select-expense"); err != nil {
+		slog.Error("failed to edit change state", "error", err)
+	}
 	return fmt.Sprintf("callback:%s", data)
 }
 
-func (c *ConversationExpenseList) PreviewExpense(expenseList []domain.Expense, data string, useChosen bool) string {
+func (c *ConversationExpenseList) PreviewExpense(ctx context.Context, user *domain.UserTelegramContext, data string) string {
 	// Get Expense
-	var expense domain.Expense
-	if useChosen {
-		expense = *c.ChosenExpense
-	} else {
-		expenseID := strings.Split(data, "=")[1]
-		expense = c.getExpense(expenseList, expenseID)
-		c.ChosenExpense = &expense
-	}
+	expenseID, _ := uuid.Parse(strings.Split(data, "=")[1])
+	exp, _ := c.expUc.GetExpenseByID(ctx, expenseID)
+	ec := container.NewFromDomain(exp)
 
 	// Set Text
 	text := strings.Join([]string{
 		"Preview of selected Expense",
-		expense.FormatMessage(),
+		ec.FormatDetail(),
 	}, "\n\n")
 
 	// Set Reply Markup
 	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Delete", "delete"),
+			tgbotapi.NewInlineKeyboardButtonData(
+				"Delete",
+				fmt.Sprintf("delete=%s", expenseID),
+			),
 		),
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Back to List", fmt.Sprintf("date=%s", c.ChosenExpense.Date)),
+			tgbotapi.NewInlineKeyboardButtonData(
+				"Back to List",
+				fmt.Sprintf("date=%s", exp.TransactionDate.Format("2006-01-02")),
+			),
 			tgbotapi.NewInlineKeyboardButtonData("Done", "done"),
 		),
 	)
 
 	// Edit Message
-	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
-		slog.Error("failed to edit telegram message")
+	if _, err := c.telbot.EditMessage(*user.InteractionChatID, *user.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
+		slog.Error("failed to edit telegram message", "error", err)
 	}
 
 	// Set User Context
-	c.User.ChangeState("preview-expense")
+	if _, err := c.utelUc.ChangeState(ctx, user.UserID, "preview-expense"); err != nil {
+		slog.Error("failed to change state", "error", err)
+	}
 	return fmt.Sprintf("callback:%s", data)
 }
 
-func (c *ConversationExpenseList) ConfirmationDeleteExpense() string {
+func (c *ConversationExpenseList) ConfirmationDeleteExpense(ctx context.Context, user *domain.UserTelegramContext, data string) string {
+	// Get Expense
+	expenseID, err := uuid.Parse(strings.Split(data, "=")[1])
+	if err != nil {
+		slog.Error("invalid expense_id UUID format", "error", err)
+	}
+
+	exp, err := c.expUc.GetExpenseByID(ctx, expenseID)
+	if err != nil {
+		slog.Error("failed to fetch expense", "error", err)
+	}
+
+	// Create Container
+	ec := container.NewFromDomain(exp)
+
 	// Set Text
 	text := strings.Join([]string{
 		"Preview of selected Expense",
-		c.ChosenExpense.FormatMessage(),
+		ec.FormatDetail(),
 		"Are you sure want to delete this expense?",
 	}, "\n\n")
 
 	// Set Reply Markup
 	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Yes", "confirmation=yes"),
+			tgbotapi.NewInlineKeyboardButtonData("Yes", "confirmation=%s"),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("No", "confirmation=no"),
@@ -211,18 +221,27 @@ func (c *ConversationExpenseList) ConfirmationDeleteExpense() string {
 	)
 
 	// Edit Message
-	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
-		slog.Error("failed to edit telegram message")
+	if _, err := c.telbot.EditMessage(*user.InteractionChatID, *user.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
+		slog.Error("failed to edit telegram message", "error", err)
 	}
 
 	// Set User Context
-	c.User.ChangeState("delete-confirmation")
-	return "callback:delete"
+	if _, err := c.utelUc.ChangeState(ctx, user.UserID, "delete-confirmation"); err != nil {
+		slog.Error("failed to change state", "error", err)
+	}
+	return fmt.Sprintf("callback:%s", data)
 }
 
-func (c *ConversationExpenseList) AfterDeleteExpense(expenseList []domain.Expense) string {
-	// Remove Expense
-	expenseList = c.deleteExpense(expenseList, c.ChosenExpense.ID)
+func (c *ConversationExpenseList) AfterDeleteExpense(ctx context.Context, user *domain.UserTelegramContext, data string) string {
+	// Delete Expense
+	expenseID, err := uuid.Parse(strings.Split(data, "=")[1])
+	if err != nil {
+		slog.Error("invalid expense_id UUID format", "error", err)
+	}
+
+	if err := c.expUc.DeleteExpense(ctx, expenseID); err != nil {
+		slog.Error("failed to delete expense", "error", err)
+	}
 
 	// Set Text
 	text := "Expense successfully deleted"
@@ -236,26 +255,29 @@ func (c *ConversationExpenseList) AfterDeleteExpense(expenseList []domain.Expens
 	)
 
 	// Edit Message
-	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
-		slog.Error("failed to edit telegram message")
+	if _, err := c.telbot.EditMessage(*user.InteractionChatID, *user.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
+		slog.Error("failed to edit telegram message", "error", err)
 	}
 
 	// Set User context
-	c.User.ChangeState("after-delete")
-	return "callback:after-delete"
+	if _, err := c.utelUc.ChangeState(ctx, user.UserID, "after-delete"); err != nil {
+		slog.Error("failed to change state", "error", err)
+	}
+	return fmt.Sprintf("callback:%s", data)
 }
 
-func (c *ConversationExpenseList) Closure() string {
+func (c *ConversationExpenseList) Closure(ctx context.Context, user *domain.UserTelegramContext, data string) string {
 	// Set Text
 	text := "Closing expenses list"
 
 	// Edit Message
-	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, nil); err != nil {
-		slog.Error("failed to edit telegram message")
+	if _, err := c.telbot.EditMessage(*user.InteractionChatID, *user.InteractionMessageID, text, nil); err != nil {
+		slog.Error("failed to edit telegram message", "error", err)
 	}
 
 	// Update User Context
-	c.ChosenExpense = nil
-	c.User.CloseConversation()
-	return "callback:done"
+	if _, err := c.utelUc.CloseConversation(ctx, user.UserID); err != nil {
+		slog.Error("failed to close conversation", "error", err)
+	}
+	return fmt.Sprintf("callback:%s", data)
 }

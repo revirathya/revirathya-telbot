@@ -1,9 +1,15 @@
 package grpc
 
-import "google.golang.org/grpc"
+import (
+	financecorev1 "github.com/revirathya/revirathya-telbot/gen/go/financecore/v1"
+	"google.golang.org/grpc"
+)
 
 type FinanceCoreConn struct {
-	Conn *grpc.ClientConn
+	Conn                *grpc.ClientConn
+	Expense             financecorev1.ExpenseServiceClient
+	Category            financecorev1.CategoryServiceClient
+	UserTelegramContext financecorev1.UserTelegramContextServiceClient
 }
 
 func NewFinanceCoreConn(addr string) (*FinanceCoreConn, error) {
@@ -13,7 +19,10 @@ func NewFinanceCoreConn(addr string) (*FinanceCoreConn, error) {
 	}
 
 	return &FinanceCoreConn{
-		Conn: conn,
+		Conn:                conn,
+		Expense:             financecorev1.NewExpenseServiceClient(conn),
+		Category:            financecorev1.NewCategoryServiceClient(conn),
+		UserTelegramContext: financecorev1.NewUserTelegramContextServiceClient(conn),
 	}, nil
 }
 

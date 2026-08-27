@@ -1,10 +1,12 @@
 package main
 
 import (
+	"context"
 	"encoding/json"
 	"log/slog"
 	"net/http"
 	"os"
+	"strconv"
 	"strings"
 
 	"github.com/go-chi/chi/v5"
@@ -17,6 +19,11 @@ import (
 	"github.com/revirathya/revirathya-telbot/internal/handler/subflow"
 	grpcCon "github.com/revirathya/revirathya-telbot/internal/platform/grpc"
 	"github.com/revirathya/revirathya-telbot/internal/platform/telegram"
+	grpcRepo "github.com/revirathya/revirathya-telbot/internal/repository/grpc"
+
+	ucCtg "github.com/revirathya/revirathya-telbot/internal/usecase/category"
+	ucExp "github.com/revirathya/revirathya-telbot/internal/usecase/expense"
+	ucUtel "github.com/revirathya/revirathya-telbot/internal/usecase/usercontext"
 )
 
 // Main
@@ -39,17 +46,6 @@ func main() {
 		os.Exit(1)
 	}
 
-	// Set User context
-	user := domain.NewUserContext()
-	expenseList := make([]domain.Expense, 0)
-
-	// Data: Categories
-	var CATEGORIES []domain.Category = []domain.Category{
-		{ID: "1", Label: "Food - Daily"},
-		{ID: "2", Label: "Food - Snacks & Coffee"},
-		{ID: "3", Label: "Groceries"},
-	}
-
 	// Set gRPC Servers
 	fincoreConn, err := grpcCon.NewFinanceCoreConn(cfg.FinanceCoreGRPC)
 	if err != nil {
@@ -58,21 +54,34 @@ func main() {
 	}
 	defer fincoreConn.Close()
 
+	// Set Repository
+	ctgRepo := grpcRepo.NewCategoryRepositoryImpl(fincoreConn)
+	expRepo := grpcRepo.NewExpenseRepositoryImpl(fincoreConn)
+	utelRepo := grpcRepo.NewUserTelegramContextRepositoryImpl(fincoreConn)
+
+	// Set Usecase
+	ctgUc := ucCtg.NewCategoryUsecase(ctgRepo)
+	expUc := ucExp.NewExpenseUsecase(expRepo)
+	utelUc := ucUtel.NewUserTelegramContextUsecase(utelRepo)
+
 	// Conversation: Handler
-	convExpense := handler.NewConversationExpense(tbh, user)
-	convExpenseRecord := handler.NewConversationExpenseRecord(tbh, user)
-	convExpenseList := handler.NewConversationExpenseList(tbh, user)
-	convExpenseSummary := handler.NewConversationExpenseSummary(tbh, user)
+	convExpense := handler.NewConversationExpense(tbh, utelUc)
+	convExpenseRecord := handler.NewConversationExpenseRecord(tbh, utelUc, ctgUc, expUc)
+	convExpenseList := handler.NewConversationExpenseList(tbh, utelUc, expUc)
+	convExpenseSummary := handler.NewConversationExpenseSummary(tbh, utelUc, expUc)
 
 	// Subflow: Calendar
-	sfCalendar, err := subflow.NewCalendar(tbh, user)
+	sfCalendar, err := subflow.NewCalendar(tbh, utelUc)
 	if err != nil {
 		slog.Error("failed when init calendar: %s", "error", err.Error())
 		return
 	}
 
 	// Subflow: Numpad
-	sfNumpad := subflow.NewNumpad(tbh, user)
+	sfNumpad := subflow.NewNumpad(tbh)
+
+	// Temp
+	ctx := context.Background()
 
 	// API handler
 	r := chi.NewRouter()
@@ -94,36 +103,46 @@ func main() {
 		*/
 		var logHandleInput string
 
-		// Handling Updates from Telegram Bot
-		var chatID int64
-		var text string
-		var command string
+		// Get User
+		var user *domain.UserTelegramContext
+		var telegramChatID string
+		if reqBody.Message != nil {
+			telegramChatID = strconv.FormatInt(reqBody.Message.From.ID, 10)
+		} else if reqBody.CallbackQuery != nil {
+			telegramChatID = strconv.FormatInt(reqBody.CallbackQuery.From.ID, 10)
+		}
 
+		user, err = utelUc.GetUserContextByTelegramID(ctx, telegramChatID)
+		if err != nil {
+			slog.Error("failed to get user", "error", err)
+		}
+
+		// Cancel Command
 		if (reqBody.Message != nil) && (reqBody.Message.Text == "/cancel") {
-			handler.CommandCancel(tbh, user, reqBody.Message.Chat.ID)
+			handler.CommandCancel(tbh, user, ctx, utelUc, reqBody.Message.Chat.ID, "cancel")
 		}
 
 		// Handling Inputs (Update)
-		switch user.Conversation {
+		switch *user.Conversation {
 		case "root":
 			// Conversation: Root
 			if reqBody.Message != nil {
 				// Handler: Command & Text
-				chatID = reqBody.Message.Chat.ID
-				text = reqBody.Message.Text
+				chatID := reqBody.Message.Chat.ID
+				text := reqBody.Message.Text
 
 				if text[0] == '/' {
 					// Handler: Command
-					command = text[1:]
+					command := text[1:]
 					switch command {
 					case "expense":
-						logHandleInput = convExpense.Entry(chatID)
+						logHandleInput = convExpense.Entry(ctx, user, chatID)
 					}
 				}
 			}
 		case "expense":
 			// Conversation: Expense
-			switch user.State {
+			switch *user.State {
 			case "init":
 				// State: init
 				if reqBody.CallbackQuery != nil {
@@ -134,17 +153,17 @@ func main() {
 
 					switch data {
 					case "expense-record":
-						logHandleInput = convExpenseRecord.Entry(chatID, messageID)
+						logHandleInput = convExpenseRecord.Entry(ctx, user, chatID, messageID, data)
 					case "expense-list":
-						logHandleInput = convExpenseList.Entry(chatID, messageID)
+						logHandleInput = convExpenseList.Entry(ctx, user, chatID, messageID, data)
 					case "expense-summary":
-						logHandleInput = convExpenseSummary.Entry(chatID, messageID)
+						logHandleInput = convExpenseSummary.Entry(ctx, user, chatID, messageID, data)
 					}
 				}
 			}
 		case "expense-record":
 			// Conversation: Expense Record
-			switch user.State {
+			switch *user.State {
 			case "init":
 				// State: init
 				if reqBody.CallbackQuery != nil {
@@ -152,10 +171,10 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if strings.HasPrefix(data, "date=") {
-						logHandleInput = convExpenseRecord.InteractionSelectCategory(CATEGORIES, data)
+						logHandleInput = convExpenseRecord.InteractionSelectCategory(ctx, user, data)
 					} else if strings.HasPrefix(data, "calendar=") {
 						refDate := strings.Split(data, "=")[1]
-						logHandleInput = sfCalendar.Init("date=", refDate)
+						logHandleInput = sfCalendar.Init(ctx, user, "date=", refDate, data)
 					}
 				}
 			case "calendar":
@@ -165,10 +184,10 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if strings.HasPrefix(data, "date=") {
-						logHandleInput = convExpenseRecord.InteractionSelectCategory(CATEGORIES, data)
+						logHandleInput = convExpenseRecord.InteractionSelectCategory(ctx, user, data)
 					} else if strings.HasPrefix(data, "calendar=") {
 						refDate := strings.Split(data, "=")[1]
-						logHandleInput = sfCalendar.Init("date=", refDate)
+						logHandleInput = sfCalendar.Init(ctx, user, "date=", refDate, data)
 					}
 				}
 			case "select-category":
@@ -180,7 +199,7 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if strings.HasPrefix(data, "category=") {
-						logHandleInput = convExpenseRecord.InteractionInputDescription(CATEGORIES, data)
+						logHandleInput = convExpenseRecord.InteractionInputDescription(ctx, user, data)
 					}
 				}
 			case "input-description":
@@ -189,7 +208,7 @@ func main() {
 					// Handler: Command & Text
 					text := reqBody.Message.Text
 
-					logHandleInput = convExpenseRecord.InteractionInputAmount(text)
+					logHandleInput = convExpenseRecord.InteractionInputAmount(ctx, user, text)
 				}
 			case "input-amount":
 				// State: input-amount
@@ -198,10 +217,10 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if strings.HasPrefix(data, "amount=") {
-						logHandleInput = convExpenseRecord.InteractionSelectConfirmation(data)
+						logHandleInput = convExpenseRecord.InteractionSelectConfirmation(ctx, user, data)
 					} else if strings.HasPrefix(data, "numpad=") {
 						currAmount := strings.Split(data, "=")[1]
-						logHandleInput = sfNumpad.Init("amount=", currAmount)
+						logHandleInput = sfNumpad.Init(ctx, user, "amount=", currAmount, data)
 					}
 				}
 			case "select-confirmation":
@@ -211,13 +230,13 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if strings.HasPrefix(data, "confirmation=") {
-						logHandleInput = convExpenseRecord.Closure(&expenseList, data)
+						logHandleInput = convExpenseRecord.Closure(ctx, user, data)
 					}
 				}
 			}
 		case "expense-list":
 			// Conversation: Expense List
-			switch user.State {
+			switch *user.State {
 			case "init":
 				// State: init
 				if reqBody.CallbackQuery != nil {
@@ -227,10 +246,10 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if strings.HasPrefix(data, "date=") {
-						logHandleInput = convExpenseList.SelectExpense(expenseList, data)
+						logHandleInput = convExpenseList.SelectExpense(ctx, user, data)
 					} else if strings.HasPrefix(data, "calendar=") {
 						refDate := strings.Split(data, "=")[1]
-						logHandleInput = sfCalendar.Init("date=", refDate)
+						logHandleInput = sfCalendar.Init(ctx, user, "date=", refDate, data)
 					}
 				}
 			case "calendar":
@@ -240,10 +259,10 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if strings.HasPrefix(data, "date=") {
-						logHandleInput = convExpenseList.SelectExpense(expenseList, data)
+						logHandleInput = convExpenseList.SelectExpense(ctx, user, data)
 					} else if strings.HasPrefix(data, "calendar=") {
 						refDate := strings.Split(data, "=")[1]
-						logHandleInput = sfCalendar.Init("date=", refDate)
+						logHandleInput = sfCalendar.Init(ctx, user, "date=", refDate, data)
 					}
 				}
 			case "select-expense":
@@ -255,12 +274,12 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if strings.HasPrefix(data, "expense=") {
-						logHandleInput = convExpenseList.PreviewExpense(expenseList, data, false)
+						logHandleInput = convExpenseList.PreviewExpense(ctx, user, data)
 					} else if data == "done" {
-						logHandleInput = convExpenseList.Closure()
+						logHandleInput = convExpenseList.Closure(ctx, user, data)
 					} else if strings.HasPrefix(data, "calendar=") {
 						refDate := strings.Split(data, "=")[1]
-						logHandleInput = sfCalendar.Init("date=", refDate)
+						logHandleInput = sfCalendar.Init(ctx, user, "date=", refDate, data)
 					}
 				}
 			case "preview-expense":
@@ -272,11 +291,11 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if data == "delete" {
-						logHandleInput = convExpenseList.ConfirmationDeleteExpense()
+						logHandleInput = convExpenseList.ConfirmationDeleteExpense(ctx, user, data)
 					} else if data == "done" {
-						logHandleInput = convExpenseList.Closure()
+						logHandleInput = convExpenseList.Closure(ctx, user, data)
 					} else if strings.HasPrefix(data, "date=") {
-						logHandleInput = convExpenseList.SelectExpense(expenseList, data)
+						logHandleInput = convExpenseList.SelectExpense(ctx, user, data)
 					}
 				}
 			case "delete-confirmation":
@@ -289,9 +308,9 @@ func main() {
 
 					switch data {
 					case "confirmation=yes":
-						logHandleInput = convExpenseList.AfterDeleteExpense(expenseList)
+						logHandleInput = convExpenseList.AfterDeleteExpense(ctx, user, data)
 					case "confirmation=no":
-						logHandleInput = convExpenseList.PreviewExpense(nil, data, true)
+						logHandleInput = convExpenseList.PreviewExpense(ctx, user, data)
 					}
 				}
 			case "after-delete":
@@ -303,16 +322,16 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if data == "done" {
-						logHandleInput = convExpenseList.Closure()
+						logHandleInput = convExpenseList.Closure(ctx, user, data)
 					} else if strings.HasPrefix(data, "calendar=") {
 						refDate := strings.Split(data, "=")[1]
-						logHandleInput = sfCalendar.Init("date=", refDate)
+						logHandleInput = sfCalendar.Init(ctx, user, "date=", refDate, data)
 					}
 				}
 			}
 		case "expense-summary":
 			// Conversation: Expense Summary
-			switch user.State {
+			switch *user.State {
 			case "init":
 				// State: init
 				if reqBody.CallbackQuery != nil {
@@ -322,7 +341,7 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if data == "summary=daily-expense" {
-						logHandleInput = convExpenseSummary.DailyExpenseFilterDate()
+						logHandleInput = convExpenseSummary.DailyExpenseFilterDate(ctx, user, data)
 					}
 				}
 			case "daily-expense-filter-date":
@@ -334,10 +353,10 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if strings.HasPrefix(data, "date=") {
-						logHandleInput = convExpenseSummary.DailyExpenseReport(expenseList, data)
+						logHandleInput = convExpenseSummary.DailyExpenseReport(ctx, user, data)
 					} else if strings.HasPrefix(data, "calendar=") {
 						refDate := strings.Split(data, "=")[1]
-						logHandleInput = sfCalendar.Init("date=", refDate)
+						logHandleInput = sfCalendar.Init(ctx, user, "date=", refDate, data)
 					}
 				}
 			case "daily-expense-report":
@@ -349,10 +368,10 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if data == "done" {
-						logHandleInput = convExpenseSummary.Closure()
+						logHandleInput = convExpenseSummary.Closure(ctx, user, data)
 					} else if strings.HasPrefix(data, "calendar=") {
 						refDate := strings.Split(data, "=")[1]
-						logHandleInput = sfCalendar.Init("date=", refDate)
+						logHandleInput = sfCalendar.Init(ctx, user, "date=", refDate, data)
 					}
 				}
 			case "calendar":
@@ -362,10 +381,10 @@ func main() {
 					data := reqBody.CallbackQuery.Data
 
 					if strings.HasPrefix(data, "date=") {
-						logHandleInput = convExpenseSummary.DailyExpenseReport(expenseList, data)
+						logHandleInput = convExpenseSummary.DailyExpenseReport(ctx, user, data)
 					} else if strings.HasPrefix(data, "calendar=") {
 						refDate := strings.Split(data, "=")[1]
-						logHandleInput = sfCalendar.Init("date=", refDate)
+						logHandleInput = sfCalendar.Init(ctx, user, "date=", refDate, data)
 					}
 				}
 			}

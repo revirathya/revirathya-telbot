@@ -1,6 +1,7 @@
 package subflow
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strconv"
@@ -12,14 +13,12 @@ import (
 )
 
 type Numpad struct {
-	Telbot *telegram.TelegramBotHandler
-	User   *domain.UserContext
+	telbot *telegram.TelegramBotHandler
 }
 
-func NewNumpad(tbh *telegram.TelegramBotHandler, user *domain.UserContext) *Numpad {
+func NewNumpad(tbh *telegram.TelegramBotHandler) *Numpad {
 	return &Numpad{
-		Telbot: tbh,
-		User:   user,
+		telbot: tbh,
 	}
 }
 
@@ -47,7 +46,11 @@ func (n *Numpad) newNumpadNumbers(currAmount string) [][]tgbotapi.InlineKeyboard
 	for range 3 {
 		row = nil
 		for range 3 {
-			callbackData = fmt.Sprintf("numpad=%s%d", currAmount, iter)
+			if currAmount != "0" {
+				callbackData = fmt.Sprintf("numpad=%s%d", currAmount, iter)
+			} else {
+				callbackData = fmt.Sprintf("numpad=%d", iter)
+			}
 			row = append(row, tgbotapi.NewInlineKeyboardButtonData(
 				strconv.FormatInt(iter, 10),
 				callbackData,
@@ -82,7 +85,7 @@ func (n *Numpad) newZeroUtility(callbackPrefix string, currAmount string) [][]tg
 }
 
 // Public
-func (n *Numpad) Init(callbackPrefix string, currAmount string) string {
+func (n *Numpad) Init(ctx context.Context, user *domain.UserTelegramContext, callbackPrefix string, currAmount string, data string) string {
 	// Set Text
 	text := "Please input amount below:"
 
@@ -103,9 +106,9 @@ func (n *Numpad) Init(callbackPrefix string, currAmount string) string {
 	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(rows...)
 
 	// Edit Message
-	if _, err := n.Telbot.EditMessage(n.User.InteractionChatID, n.User.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
+	if _, err := n.telbot.EditMessage(*user.InteractionChatID, *user.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
 		slog.Error("failed to edit telegram message")
 	}
 
-	return "callback:numpad"
+	return fmt.Sprintf("callback:%s", data)
 }

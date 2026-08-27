@@ -1,6 +1,7 @@
 package subflow
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"math"
@@ -9,13 +10,14 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/revirathya/revirathya-telbot/internal/domain"
 	"github.com/revirathya/revirathya-telbot/internal/platform/telegram"
+	ucUtel "github.com/revirathya/revirathya-telbot/internal/usecase/usercontext"
 	"github.com/revirathya/revirathya-telbot/internal/utils"
 )
 
 type Calendar struct {
-	Telbot   *telegram.TelegramBotHandler
-	User     *domain.UserContext
-	Timezone *time.Location
+	telbot   *telegram.TelegramBotHandler
+	timezone *time.Location
+	utelUc   *ucUtel.UserTelegramContextUsecase
 }
 
 type CalendarConfig struct {
@@ -24,16 +26,16 @@ type CalendarConfig struct {
 	TotalRows int
 }
 
-func NewCalendar(tbh *telegram.TelegramBotHandler, user *domain.UserContext) (*Calendar, error) {
+func NewCalendar(tbh *telegram.TelegramBotHandler, utelUc *ucUtel.UserTelegramContextUsecase) (*Calendar, error) {
 	tz, err := time.LoadLocation("Asia/Jakarta")
 	if err != nil {
 		return nil, err
 	}
 
 	return &Calendar{
-		Telbot:   tbh,
-		User:     user,
-		Timezone: tz,
+		telbot:   tbh,
+		timezone: tz,
+		utelUc:   utelUc,
 	}, nil
 }
 
@@ -42,10 +44,10 @@ func (c *Calendar) getCalendarConfig(refDate time.Time) CalendarConfig {
 	cfg := CalendarConfig{}
 
 	// Total Days
-	cfg.TotalDays = time.Date(refDate.Year(), refDate.Month()+1, 0, 0, 0, 0, 0, c.Timezone).Day()
+	cfg.TotalDays = time.Date(refDate.Year(), refDate.Month()+1, 0, 0, 0, 0, 0, c.timezone).Day()
 
 	// Padding
-	weekday := int(time.Date(refDate.Year(), refDate.Month(), 1, 0, 0, 0, 0, c.Timezone).Weekday())
+	weekday := int(time.Date(refDate.Year(), refDate.Month(), 1, 0, 0, 0, 0, c.timezone).Weekday())
 	cfg.Padding = (((weekday - 1) % 7) + 7) % 7 // Set Mon = 0 instead of Sun = 0. Mitigate negative modulo
 
 	// Total Rows
@@ -124,12 +126,16 @@ func (c *Calendar) newCalendarNavigation(refDate time.Time) []tgbotapi.InlineKey
 }
 
 // Public
-func (c *Calendar) Init(callbackPrefix string, refDateStr string) string {
+func (c *Calendar) Init(ctx context.Context, user *domain.UserTelegramContext, callbackPrefix string, refDateStr string, data string) string {
 	// Set Text
 	text := "Please select date below:"
 
 	// Build Calendar
-	refDate, _ := time.ParseInLocation("2006-01", refDateStr, c.Timezone)
+	refDate, err := time.ParseInLocation("2006-01", refDateStr, c.timezone)
+	if err != nil {
+		slog.Error("invalid ref_date Date format", "error", err)
+	}
+
 	calHeader := c.newCalendarTitle(refDate)
 	calBody := c.newCalendarBody(callbackPrefix, refDate)
 	calNav := c.newCalendarNavigation(refDate)
@@ -143,13 +149,15 @@ func (c *Calendar) Init(callbackPrefix string, refDateStr string) string {
 	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(rows...)
 
 	// Edit Message
-	if _, err := c.Telbot.EditMessage(c.User.InteractionChatID, c.User.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
-		slog.Error("failed to edit telegram message")
+	if _, err := c.telbot.EditMessage(*user.InteractionChatID, *user.InteractionMessageID, text, &inlineKeyboardMarkup); err != nil {
+		slog.Error("failed to edit telegram message", "error", err)
 	}
 
 	// Set User Context
-	c.User.ChangeState("calendar")
-	return "callback:calendar"
+	if _, err := c.utelUc.ChangeState(ctx, user.UserID, "calendar"); err != nil {
+		slog.Error("failed to change state", "error", err)
+	}
+	return fmt.Sprintf("callback:%s", data)
 }
 
 // Utility

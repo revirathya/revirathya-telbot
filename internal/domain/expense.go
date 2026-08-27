@@ -1,75 +1,36 @@
 package domain
 
 import (
-	"fmt"
-	"strings"
+	"context"
+	"time"
 
 	"github.com/google/uuid"
-	"github.com/revirathya/revirathya-telbot/internal/utils"
+	"github.com/shopspring/decimal"
 )
 
-// Model: Expense
+// Entity: Expense
 type Expense struct {
-	ID            uuid.UUID
-	Date          string
-	CategoryID    string
-	CategoryLabel string
-	Description   string
-	Amount        int64
+	ID              uuid.UUID
+	UserID          uuid.UUID
+	TransactionDate time.Time
+	CategoryID      uuid.UUID
+	CategoryName    string
+	Description     *string
+	Amount          decimal.Decimal
 }
 
-func CreateExpense(date string, categoryID string, categoryLabel string, description string, amount int64) Expense {
-	id := uuid.New()
-	return Expense{
-		ID:            id,
-		Date:          date,
-		CategoryID:    categoryID,
-		CategoryLabel: categoryLabel,
-		Description:   description,
-		Amount:        amount,
-	}
+type CreateExpense struct {
+	UserID          uuid.UUID
+	TransactionDate time.Time
+	CategoryID      uuid.UUID
+	Description     *string
+	Amount          int64
 }
 
-func (e *Expense) SetCategory(categoryID string, categories []Category) {
-	for _, ctg := range categories {
-		if categoryID == ctg.ID {
-			e.CategoryID = categoryID
-			e.CategoryLabel = ctg.Label
-			break
-		}
-	}
-}
-
-func (e *Expense) FormatMessage() string {
-	tokens := []string{}
-
-	if e.Date != "" {
-		tokens = append(tokens, fmt.Sprintf("<b>Date</b>: %s", e.Date))
-	}
-
-	if e.CategoryID != "" {
-		tokens = append(tokens, fmt.Sprintf("<b>Category</b>: %s", e.CategoryLabel))
-	}
-
-	if e.Description != "" {
-		tokens = append(tokens, fmt.Sprintf("<b>Description</b>: %s", e.Description))
-	}
-
-	if e.Amount != 0 {
-		tokens = append(tokens, fmt.Sprintf("<b>Amount</b>: Rp %s", utils.FormatThousand(e.Amount)))
-	}
-
-	return strings.Join(tokens, "\n")
-}
-
-func (e *Expense) FormatInline() string {
-	return fmt.Sprintf("[%s] Rp %s", e.CategoryLabel, utils.FormatThousand(e.Amount))
-}
-
-func (e *Expense) Clear() {
-	e.Date = ""
-	e.CategoryID = ""
-	e.CategoryLabel = ""
-	e.Description = ""
-	e.Amount = 0
+// Repository: Expense
+type ExpenseRepository interface {
+	CreateExpense(ctx context.Context, newExpense CreateExpense) (*Expense, error)
+	ListExpenses(ctx context.Context, userID uuid.UUID, transactionDate time.Time) ([]Expense, error)
+	GetExpenseByID(ctx context.Context, id uuid.UUID) (*Expense, error)
+	DeleteExpense(ctx context.Context, id uuid.UUID) error
 }
