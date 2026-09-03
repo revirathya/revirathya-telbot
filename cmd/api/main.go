@@ -47,7 +47,7 @@ func main() {
 	}
 
 	// Set gRPC Servers
-	fincoreConn, err := grpcCon.NewFinanceCoreConn(cfg.FinanceCoreGRPC)
+	fincoreConn, err := grpcCon.NewFinanceCoreConn(cfg.FinanceCoreGRPCHost)
 	if err != nil {
 		slog.Error("failed to connect finance core grpc server", "error", err)
 		os.Exit(1)
@@ -393,5 +393,5 @@ func main() {
 		slog.Debug("reqBody", "update_obj", reqBody)
 	})
 
-	http.ListenAndServe(":80", r)
+	http.ListenAndServe(cfg.AppPort, r)
 }
