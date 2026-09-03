@@ -168,6 +168,7 @@ func (r *expenseRepositoryImpl) GetExpenseByID(ctx context.Context, id uuid.UUID
 		UserID:          uuidUserID,
 		TransactionDate: dtTransactionDt,
 		CategoryID:      uuidCategoryID,
+		CategoryName:    row.CategoryName,
 		Description:     row.Description,
 		Amount:          decAmount,
 	}

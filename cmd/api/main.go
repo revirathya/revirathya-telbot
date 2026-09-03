@@ -290,7 +290,7 @@ func main() {
 					_ = reqBody.CallbackQuery.Message.MessageID
 					data := reqBody.CallbackQuery.Data
 
-					if data == "delete" {
+					if strings.HasPrefix(data, "delete=") {
 						logHandleInput = convExpenseList.ConfirmationDeleteExpense(ctx, user, data)
 					} else if data == "done" {
 						logHandleInput = convExpenseList.Closure(ctx, user, data)
@@ -306,11 +306,10 @@ func main() {
 					_ = reqBody.CallbackQuery.Message.MessageID
 					data := reqBody.CallbackQuery.Data
 
-					switch data {
-					case "confirmation=yes":
-						logHandleInput = convExpenseList.AfterDeleteExpense(ctx, user, data)
-					case "confirmation=no":
+					if data == "confirmation=no" {
 						logHandleInput = convExpenseList.PreviewExpense(ctx, user, data)
+					} else if strings.HasPrefix(data, "confirmation=") {
+						logHandleInput = convExpenseList.AfterDeleteExpense(ctx, user, data)
 					}
 				}
 			case "after-delete":
@@ -394,5 +393,5 @@ func main() {
 		slog.Debug("reqBody", "update_obj", reqBody)
 	})
 
-	http.ListenAndServe(":8080", r)
+	http.ListenAndServe(":80", r)
 }

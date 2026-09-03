@@ -213,7 +213,7 @@ func (c *ConversationExpenseList) ConfirmationDeleteExpense(ctx context.Context,
 	// Set Reply Markup
 	inlineKeyboardMarkup := tgbotapi.NewInlineKeyboardMarkup(
 		tgbotapi.NewInlineKeyboardRow(
-			tgbotapi.NewInlineKeyboardButtonData("Yes", "confirmation=%s"),
+			tgbotapi.NewInlineKeyboardButtonData("Yes", fmt.Sprintf("confirmation=%s", expenseID)),
 		),
 		tgbotapi.NewInlineKeyboardRow(
 			tgbotapi.NewInlineKeyboardButtonData("No", "confirmation=no"),
