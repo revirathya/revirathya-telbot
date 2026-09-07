@@ -3,6 +3,8 @@ package main
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"log"
 	"log/slog"
 	"net/http"
 	"os"
@@ -393,5 +395,5 @@ func main() {
 		slog.Debug("reqBody", "update_obj", reqBody)
 	})
 
-	http.ListenAndServe(cfg.AppPort, r)
+	log.Fatal(http.ListenAndServe(fmt.Sprintf(":%s", cfg.AppPort), r))
 }

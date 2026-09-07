@@ -14,3 +14,10 @@ proto-generate:
 
 proto-lint:
 	buf lint
+
+## --- docker ---
+docker-build:
+	docker build -t revirathya/revirathya-telbot:latest .
+
+docker-run:
+	docker run --rm -p 8080:8080 --env-file .env revirathya/revirathya-telbot:latest

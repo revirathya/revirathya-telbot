@@ -23,3 +23,6 @@ go.work.sum
 
 # proto: vendored codegen output, regenerate via `make proto-generate`
 gen/
+
+# Development
+dev-notes/
