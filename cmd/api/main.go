@@ -49,7 +49,7 @@ func main() {
 	}
 
 	// Set gRPC Servers
-	fincoreConn, err := grpcCon.NewFinanceCoreConn(cfg.FinanceCoreGRPCHost)
+	fincoreConn, err := grpcCon.NewFinanceCoreConn(cfg.FincoreGRPCHost)
 	if err != nil {
 		slog.Error("failed to connect finance core grpc server", "error", err)
 		os.Exit(1)
