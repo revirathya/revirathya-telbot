@@ -6,7 +6,6 @@ import (
 	"time"
 
 	"github.com/revirathya/revirathya-telbot/internal/domain"
-	"github.com/revirathya/revirathya-telbot/internal/platform/grpc/converter"
 	"github.com/revirathya/revirathya-telbot/internal/utils"
 	"github.com/shopspring/decimal"
 )
@@ -115,7 +114,7 @@ func (ec *ExpenseContainer) FormatInline() string {
 
 // Export
 func (ec *ExpenseContainer) ToDomain() (domain.ExpenseForm, error) {
-	categoryID, err := converter.ParseUUID("category_id", ec.CategoryID.Value)
+	categoryID, err := utils.StringToUUID("category_id", ec.CategoryID.Value)
 	if err != nil {
 		return domain.ExpenseForm{}, err
 	}

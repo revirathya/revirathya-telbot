@@ -7,6 +7,6 @@
 - [ ] The PR title follows Conventional Commits: `type(scope): summary`, e.g. `feat(expense): add request_id`
       (types: `feat`, `fix`, `docs`, `refactor`, `test`, `chore`, `ci`, `build`, `perf`, `revert`; `!` marks a
       breaking change)
-- [ ] `make check` and `make leaks` pass
+- [ ] `make check` pass
 - [ ] Docs updated: README (API behaviour), CHANGELOG, `docs/` if a decision changed (new ADR in `docs/adr/`)
 - [ ] No secrets, tokens or DSNs in code, tests, logs or this description

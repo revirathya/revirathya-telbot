@@ -1,28 +1,27 @@
 package converter
 
 import (
-	"fmt"
-
 	"github.com/google/uuid"
+	errDom "github.com/revirathya/revirathya-telbot/internal/domain/error"
 )
 
-// ParseUUID parses a required UUID field; a bad value is a ValidationError, so ToStatus gives INVALID_ARGUMENT
+// FromProtoUUID parses a required UUID field; a bad value is a ValidationError, so ToStatus gives INVALID_ARGUMENT
 // with "field: must be a UUID".
-func ParseUUID(field string, s string) (uuid.UUID, error) {
+func FromProtoUUID(field string, s string) (uuid.UUID, error) {
 	id, err := uuid.Parse(s)
 	if err != nil {
-		return uuid.Nil, fmt.Errorf("must be valid uuid")
+		return uuid.Nil, &errDom.ValidationError{Field: field, Reason: "must be a UUID"}
 	}
 	return id, nil
 }
 
-// ParseOptionalUUID is ParseUUID for an optional field: nil means "not set"
-func ParseOptionalUUID(field string, s *string) (*uuid.UUID, error) {
+// FromOptionalProtoUUID is FromProtoUUID for an optional field: nil means "not set"
+func FromOptionalProtoUUID(field string, s *string) (*uuid.UUID, error) {
 	if s == nil {
 		return nil, nil
 	}
 
-	id, err := ParseUUID(field, *s)
+	id, err := FromProtoUUID(field, *s)
 	if err != nil {
 		return nil, err
 	}

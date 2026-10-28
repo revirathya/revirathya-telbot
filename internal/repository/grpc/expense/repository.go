@@ -6,11 +6,14 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	financecorev1 "github.com/revirathya/revirathya-finance-core/gen/grpc/financecore/v1"
 
 	// Internal
 	"github.com/revirathya/revirathya-telbot/internal/domain"
+	errDom "github.com/revirathya/revirathya-telbot/internal/domain/error"
 	"github.com/revirathya/revirathya-telbot/internal/platform/grpc/clients"
 	"github.com/revirathya/revirathya-telbot/internal/platform/grpc/converter"
 )
@@ -25,7 +28,40 @@ func NewExpenseRepositoryImpl(finance *clients.FinanceClient) domain.ExpenseRepo
 	}
 }
 
+func (r *expenseRepositoryImpl) expenseToDomain(exp *financecorev1.Expense) (*domain.Expense, error) {
+	id, err := converter.FromProtoUUID("id", exp.Id)
+	if err != nil {
+		return nil, err
+	}
+
+	transactionDt, err := converter.FromProtoDate("transaction_dt", exp.TransactionDt)
+	if err != nil {
+		return nil, err
+	}
+
+	categoryID, err := converter.FromProtoUUID("category_id", exp.CategoryId)
+	if err != nil {
+		return nil, err
+	}
+
+	amount, err := converter.FromProtoDecimal("amount", exp.Amount)
+	if err != nil {
+		return nil, err
+	}
+
+	result := &domain.Expense{
+		ID:            id,
+		TransactionDt: transactionDt,
+		CategoryID:    categoryID,
+		Description:   exp.GetDescription(),
+		Amount:        amount,
+	}
+	return result, nil
+}
+
+// Public
 func (r *expenseRepositoryImpl) CreateExpense(ctx context.Context, form domain.ExpenseForm, requestID uuid.UUID) (*domain.Expense, error) {
+	// Prepare input
 	in := &financecorev1.CreateExpenseRequest{
 		CategoryId:    form.CategoryID.String(),
 		TransactionDt: converter.ToProtoDate(form.TransactionDt),
@@ -33,119 +69,61 @@ func (r *expenseRepositoryImpl) CreateExpense(ctx context.Context, form domain.E
 		Amount:        converter.Int64ToProtoDecimal(form.Amount),
 	}
 
+	// Create expense
 	row, err := r.finance.Expense.CreateExpense(ctx, in)
 	if err != nil {
+		if status.Code(err) == codes.InvalidArgument {
+			return nil, errDom.ErrInvalidInput
+		}
 		return nil, fmt.Errorf("failed to create expenses: %v", err)
 	}
 
-	id, err := converter.ParseUUID("id", row.Expense.Id)
-	if err != nil {
-		return nil, fmt.Errorf("invalid id UUID format: %v", err)
-	}
-
-	transactionDt, err := converter.FromProtoDate("transaction_dt", row.Expense.TransactionDt)
-	if err != nil {
-		return nil, fmt.Errorf("invalid transaction date Date format: %v", err)
-	}
-
-	categoryID, err := converter.ParseUUID("category_id", row.Expense.CategoryId)
-	if err != nil {
-		return nil, fmt.Errorf("invalid category id UUID format: %v", err)
-	}
-
-	amount, err := converter.FromProtoDecimal("amount", row.Expense.Amount)
-	if err != nil {
-		return nil, fmt.Errorf("invalid amount Decimal format: %v", err)
-	}
-
-	result := &domain.Expense{
-		ID:            id,
-		TransactionDt: transactionDt,
-		CategoryID:    categoryID,
-		Description:   row.Expense.GetDescription(),
-		Amount:        amount,
-	}
-	return result, nil
+	// Parse response
+	return r.expenseToDomain(row.Expense)
 }
 
 func (r *expenseRepositoryImpl) ListExpenses(ctx context.Context, transactionDt time.Time) ([]domain.Expense, error) {
+	// Prepare input
 	in := &financecorev1.ListExpensesRequest{
 		TransactionDt: converter.ToProtoDate(transactionDt),
 	}
 
+	// List expenses
 	rows, err := r.finance.Expense.ListExpenses(ctx, in)
 	if err != nil {
 		return nil, err
 	}
 
+	// Parse response
 	results := make([]domain.Expense, 0, len(rows.Expenses))
 	for _, row := range rows.Expenses {
-		id, err := converter.ParseUUID("id", row.Id)
+		result, err := r.expenseToDomain(row)
 		if err != nil {
 			return nil, err
 		}
 
-		transactionDt, err := converter.FromProtoDate("transaction_dt", row.TransactionDt)
-		if err != nil {
-			return nil, err
-		}
-
-		categoryID, err := converter.ParseUUID("category_id", row.CategoryId)
-		if err != nil {
-			return nil, fmt.Errorf("invalid category id UUID format: %v", err)
-		}
-
-		amount, err := converter.FromProtoDecimal("amount", row.Amount)
-		if err != nil {
-			return nil, fmt.Errorf("invalid amount Decimal format: %v", err)
-		}
-
-		results = append(results, domain.Expense{
-			ID:            id,
-			TransactionDt: transactionDt,
-			CategoryID:    categoryID,
-			CategoryName:  row.CategoryName,
-			Description:   row.Description,
-			Amount:        amount,
-		})
+		results = append(results, *result)
 	}
 	return results, nil
 }
 
 func (r *expenseRepositoryImpl) GetExpenseByID(ctx context.Context, id uuid.UUID) (*domain.Expense, error) {
+	// Prepare input
 	in := &financecorev1.GetExpenseByIDRequest{
 		Id: id.String(),
 	}
 
+	// Get expense by ID
 	row, err := r.finance.Expense.GetExpenseByID(ctx, in)
 	if err != nil {
+		if status.Code(err) == codes.NotFound {
+			return nil, errDom.ErrNotFound
+		}
 		return nil, err
 	}
 
-	transactionDt, err := converter.FromProtoDate("transaction_dt", row.Expense.TransactionDt)
-	if err != nil {
-		return nil, err
-	}
-
-	categoryID, err := converter.ParseUUID("category_id", row.Expense.CategoryId)
-	if err != nil {
-		return nil, err
-	}
-
-	amount, err := converter.FromProtoDecimal("amount", row.Expense.Amount)
-	if err != nil {
-		return nil, err
-	}
-
-	result := &domain.Expense{
-		ID:            id,
-		TransactionDt: transactionDt,
-		CategoryID:    categoryID,
-		CategoryName:  row.Expense.CategoryName,
-		Description:   row.Expense.Description,
-		Amount:        amount,
-	}
-	return result, nil
+	// Parse response
+	return r.expenseToDomain(row.Expense)
 }
 
 func (r *expenseRepositoryImpl) DeleteExpense(ctx context.Context, id uuid.UUID) error {
@@ -154,7 +132,10 @@ func (r *expenseRepositoryImpl) DeleteExpense(ctx context.Context, id uuid.UUID)
 	}
 
 	if _, err := r.finance.Expense.DeleteExpense(ctx, in); err != nil {
-		return fmt.Errorf("failed to delete expense: %v", err)
+		if status.Code(err) == codes.NotFound {
+			return errDom.ErrNotFound
+		}
+		return err
 	}
 	return nil
 }

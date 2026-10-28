@@ -59,3 +59,11 @@ func ValidateInt64(field string, value int64, mustPositive bool) error {
 	}
 	return nil
 }
+
+func ValidateInt(field string, value int, mustPositive bool) error {
+	switch {
+	case (mustPositive) && (value <= 0):
+		return &errDom.ValidationError{Field: field, Reason: "must be greater than 0"}
+	}
+	return nil
+}
