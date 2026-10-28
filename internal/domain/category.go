@@ -6,14 +6,14 @@ import (
 	"github.com/google/uuid"
 )
 
-// Entity: Category
+// Entity
 type Category struct {
 	ID           uuid.UUID
 	CategoryName string
 }
 
-// Entity: Category
+// Entity
 type CategoryRepository interface {
-	ListCategories(ctx context.Context, userID uuid.UUID) ([]Category, error)
+	ListCategories(ctx context.Context) ([]Category, error)
 	GetCategoryByID(ctx context.Context, id uuid.UUID) (*Category, error)
 }

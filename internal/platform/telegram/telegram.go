@@ -41,8 +41,7 @@ func GetBotWebhook(botToken string, webhookURL string) (*TelegramBotHandler, err
 	}
 
 	if info.LastErrorDate != 0 {
-		err_msg := fmt.Errorf("Telegram callback failed: %s", info.LastErrorMessage)
-		return nil, err_msg
+		return nil, fmt.Errorf("telegram callback failed: %s", info.LastErrorMessage)
 	}
 
 	// Get updates

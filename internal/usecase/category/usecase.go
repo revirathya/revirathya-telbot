@@ -1,4 +1,4 @@
-package expense
+package category
 
 import (
 	"context"
@@ -9,19 +9,19 @@ import (
 
 // Expense: Usecase
 type CategoryUsecase struct {
-	ctgRepo domain.CategoryRepository
+	category domain.CategoryRepository
 }
 
-func NewCategoryUsecase(ctgRepo domain.CategoryRepository) *CategoryUsecase {
+func NewCategoryUsecase(category domain.CategoryRepository) *CategoryUsecase {
 	return &CategoryUsecase{
-		ctgRepo: ctgRepo,
+		category: category,
 	}
 }
 
-func (uc *CategoryUsecase) ListCategories(ctx context.Context, userID uuid.UUID) ([]domain.Category, error) {
-	return uc.ctgRepo.ListCategories(ctx, userID)
+func (uc *CategoryUsecase) ListCategories(ctx context.Context) ([]domain.Category, error) {
+	return uc.category.ListCategories(ctx)
 }
 
 func (uc *CategoryUsecase) GetCategoryByID(ctx context.Context, id uuid.UUID) (*domain.Category, error) {
-	return uc.ctgRepo.GetCategoryByID(ctx, id)
+	return uc.category.GetCategoryByID(ctx, id)
 }

@@ -11,27 +11,27 @@ import (
 
 // Usecase: Expense
 type ExpenseUsecase struct {
-	expRepo domain.ExpenseRepository
+	expense domain.ExpenseRepository
 }
 
-func NewExpenseUsecase(expRepo domain.ExpenseRepository) *ExpenseUsecase {
+func NewExpenseUsecase(expense domain.ExpenseRepository) *ExpenseUsecase {
 	return &ExpenseUsecase{
-		expRepo: expRepo,
+		expense: expense,
 	}
 }
 
-func (uc *ExpenseUsecase) CreateExpense(ctx context.Context, newExpense domain.CreateExpense) (*domain.Expense, error) {
-	return uc.expRepo.CreateExpense(ctx, newExpense)
+func (uc *ExpenseUsecase) CreateExpense(ctx context.Context, form domain.ExpenseForm, requestID uuid.UUID) (*domain.Expense, error) {
+	return uc.expense.CreateExpense(ctx, form, requestID)
 }
 
-func (uc *ExpenseUsecase) ListExpenses(ctx context.Context, userID uuid.UUID, transactionDate time.Time) ([]domain.Expense, error) {
-	return uc.expRepo.ListExpenses(ctx, userID, transactionDate)
+func (uc *ExpenseUsecase) ListExpenses(ctx context.Context, transactionDate time.Time) ([]domain.Expense, error) {
+	return uc.expense.ListExpenses(ctx, transactionDate)
 }
 
 func (uc *ExpenseUsecase) GetExpenseByID(ctx context.Context, id uuid.UUID) (*domain.Expense, error) {
-	return uc.expRepo.GetExpenseByID(ctx, id)
+	return uc.expense.GetExpenseByID(ctx, id)
 }
 
 func (uc *ExpenseUsecase) DeleteExpense(ctx context.Context, id uuid.UUID) error {
-	return uc.expRepo.DeleteExpense(ctx, id)
+	return uc.expense.DeleteExpense(ctx, id)
 }

@@ -12,7 +12,8 @@ type Config struct {
 	AppPort            string
 	TelegramBotToken   string
 	TelegramWebhookURL string
-	FincoreGRPCHost    string
+	FinanceHost        string
+	FinanceApiKey      string
 }
 
 func getEnv(key string, fallback string) string {
@@ -30,10 +31,11 @@ func Load() (*Config, error) {
 	// Setup config
 	cfg := &Config{}
 	cfg.AppEnv = getEnv("APP_ENV", "dev")
-	cfg.AppPort = getEnv("APP_PORT", "8080")
+	cfg.AppPort = ":" + getEnv("APP_PORT", "8080")
 	cfg.TelegramBotToken = getEnv("TELEGRAM_BOT_TOKEN", "")
 	cfg.TelegramWebhookURL = getEnv("TELEGRAM_WEBHOOK_URL", "")
-	cfg.FincoreGRPCHost = getEnv("FINCORE_GRPC_HOST", "")
+	cfg.FinanceHost = getEnv("FINANCE_HOST", "")
+	cfg.FinanceApiKey = getEnv("FINANCE_API_KEY", "")
 
 	// Required config
 	if cfg.TelegramBotToken == "" {
@@ -44,8 +46,12 @@ func Load() (*Config, error) {
 		return nil, fmt.Errorf("TELEGRAM_WEBHOOK_URL is required")
 	}
 
-	if cfg.FincoreGRPCHost == "" {
-		return nil, fmt.Errorf("FINCORE_GRPC_HOST is required")
+	if cfg.FinanceHost == "" {
+		return nil, fmt.Errorf("FINANCE_HOST is required")
+	}
+
+	if cfg.FinanceApiKey == "" {
+		return nil, fmt.Errorf("FINANCE_API_KEY is required")
 	}
 
 	return cfg, nil
