@@ -32,6 +32,9 @@ tidy:
 http:
 	ngrok http 8080 --url $(NGROK_HOST)
 
+hooks:
+	git config core.hooksPath .githooks
+
 ## --- local infra ---
 docker-build:
 	docker build \
