@@ -12,7 +12,6 @@ require (
 	github.com/google/uuid v1.6.0
 	github.com/revirathya/revirathya-finance-core v0.1.0
 	github.com/shopspring/decimal v1.4.0
-	golang.org/x/exp v0.0.0-20261014143641-f0251eb4aa3e
 	golang.org/x/sync v0.24.0
 	google.golang.org/genproto v0.0.0-20261012220534-4341edf3f941
 	google.golang.org/grpc v1.84.0

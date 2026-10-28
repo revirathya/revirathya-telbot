@@ -44,8 +44,8 @@ func (uc *UserTelegramContextUsecase) ChangeState(ctx context.Context, state str
 }
 
 func (uc *UserTelegramContextUsecase) CloseConversation(ctx context.Context) (*domain.UserTelegramContext, error) {
-	var zeroInt int = 0
-	var zeroInt64 int64 = 0
+	var zeroInt int
+	var zeroInt64 int64
 	patch := domain.UserTelegramContextPatch{
 		Conversation:         &rootConversation,
 		State:                &rootState,

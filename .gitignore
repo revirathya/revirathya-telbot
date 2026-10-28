@@ -1,28 +1,15 @@
-# Env
-.env
-*.env
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Binaries
-/bin/
-*.exe
-*.test
-*.out
-
-# Editor / IDE
-.vscode/
+# Generated
+bin/
+vendor/
 .idea/
-*.swp
+.vscode/
+.DS_Store
+*.log
 
-# Go workspace (local-only, don't commit unless intentional)
-go.work
-go.work.sum
+# Creds
+.env
+*.pem
+*.key
 
-# proto: vendored codegen output, regenerate via `make proto-generate`
-gen/
-
-# Development
-dev-notes/
+# Internal
+notes.sh
