@@ -50,15 +50,14 @@ Checklist for a Go service that receives Telegram webhooks, handles conversation
 - [ ] **Local development guide:** how to receive webhooks locally (e.g., via a tunnel such as ngrok or cloudflared) and how to run with insecure gRPC.
 
 ### GitHub public repo
-- [ ] **Scan the full git history for secrets** with gitleaks or trufflehog. If a bot token or API key was *ever* committed, rotate it. Deleting it in a later commit doesn't remove it from history.
-- [ ] Add `.env`, credential files, and local configs to `.gitignore`, and commit a `.env.example` with placeholder values instead.
+- [x] **Scan the full git history for secrets** with gitleaks or trufflehog. If a bot token or API key was *ever* committed, rotate it. Deleting it in a later commit doesn't remove it from history.
+- [x] Add `.env`, credential files, and local configs to `.gitignore`, and commit a `.env.example` with placeholder values instead.
 - [ ] Remove hardcoded internal hostnames, IPs, and ports from code and configs.
-- [ ] Decide whether the `.proto` files of internal services should be public. They reveal your internal API surface.
-- [ ] Add a `LICENSE`. Without one, the code is public but legally not reusable.
-- [ ] Add a `SECURITY.md` explaining how to report vulnerabilities privately.
-- [ ] Turn on GitHub secret scanning and push protection, plus Dependabot for Go modules and GitHub Actions.
+- [x] Decide whether the `.proto` files of internal services should be public. They reveal your internal API surface.
+- [x] Add a `LICENSE`. Without one, the code is public but legally not reusable.
+- [x] Add a `SECURITY.md` explaining how to report vulnerabilities privately.
 - [ ] Set up branch protection on `main`: require PRs and passing CI.
-- [ ] Add a CI workflow (GitHub Actions) that runs lint, tests, `govulncheck`, and a Docker build.
+- [x] Add a CI workflow (GitHub Actions) that runs lint, tests, `govulncheck`, and a Docker build.
 
 ---
 

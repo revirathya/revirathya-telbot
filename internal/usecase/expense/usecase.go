@@ -21,6 +21,9 @@ func NewExpenseUsecase(expense domain.ExpenseRepository) *ExpenseUsecase {
 }
 
 func (uc *ExpenseUsecase) CreateExpense(ctx context.Context, form domain.ExpenseForm, requestID uuid.UUID) (*domain.Expense, error) {
+	if err := form.Validate(); err != nil {
+		return nil, err
+	}
 	return uc.expense.CreateExpense(ctx, form, requestID)
 }
 

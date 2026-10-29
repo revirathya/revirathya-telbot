@@ -1,0 +1,14 @@
+#!/bin/sh
+set -e
+
+staged=$(git diff --cached --name-only --diff-filter=ACM)
+
+# 1. Formatting and vet, only when Go files are staged
+go_files=$(echo "$staged" | grep '\.go$' || true)
+if [ -n "$go_files" ]; then
+  unformatted=$(gofmt -l $go_files)
+  if [ -n "$unformatted" ]; then
+    echo "gofmt needed:"; echo "$unformatted"; echo "Run: gofmt -w <files>"; exit 1
+  fi
+  go vet ./...
+fi

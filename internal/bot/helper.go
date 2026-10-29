@@ -9,10 +9,9 @@ import (
 	"github.com/revirathya/revirathya-telbot/internal/bot/updates"
 	"github.com/revirathya/revirathya-telbot/internal/domain"
 	"github.com/revirathya/revirathya-telbot/internal/usecase"
-	"golang.org/x/exp/constraints"
 )
 
-func coalesceNil[T constraints.Ordered](v *T, df T) T {
+func coalesceNil[T any](v *T, df T) T {
 	if v == nil {
 		return df
 	}

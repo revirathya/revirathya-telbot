@@ -29,7 +29,8 @@ make run            # Start services
 |:--|:--|
 |APP_ENV|(Optional) default: dev. Environment of deployment|
 |APP_PORT|(Optional) default: 8080. Exposes port of services|
-|FINCORE_GRPC_HOST|Host of Finance core gRPC|
+|FINANCE_HOST|Host of Finance core gRPC|
+|FINANCE_API_KEY|API Key for accessing Finance core gRPC|
 |TELEGRAM_BOT_TOKEN|API token of Telegram bot|
 |TELEGRAM_WEBHOOK_URL|Exposed URL of service for Telegram webhook to hit (public)|
 

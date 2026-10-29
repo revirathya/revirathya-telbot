@@ -17,7 +17,7 @@ func GetBotWebhook(botToken string, webhookURL string) (*TelegramBotHandler, err
 	// Authorize Bot
 	bot, err := tgbotapi.NewBotAPI(botToken)
 	if err != nil {
-		log.Fatal(err)
+		return nil, err
 	}
 	// bot.Debug = true
 	log.Printf("Authorized on account %s", bot.Self.UserName)

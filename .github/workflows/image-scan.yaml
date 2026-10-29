@@ -1,0 +1,38 @@
+name: Image Scan
+
+on:
+  pull_request:
+  schedule:
+    - cron: "0 3 * * 1" # Monday 03:00 UTC: catch vulnerabilities published after merge
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: image-scan-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  image-scan:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: telbot
+            dockerfile: infra/docker/Dockerfile
+    steps:
+      - uses: actions/checkout@v7
+      - name: Build Image
+        run: docker build -f ${{ matrix.dockerfile }} -t telbot-${{ matrix.name }}:ci .
+      - name: Scan Image
+        uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
+        with:
+          image-ref: telbot-${{ matrix.name }}:ci
+          version: v0.70.0
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          trivyignores: .trivyignore
+ 

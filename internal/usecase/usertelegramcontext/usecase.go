@@ -33,6 +33,10 @@ func (uc *UserTelegramContextUsecase) StartConversation(ctx context.Context, con
 		InteractionChatID:    &chatID,
 		InteractionMessageID: &messageID,
 	}
+
+	if err := patch.Validate(); err != nil {
+		return nil, err
+	}
 	return uc.userTelegramContext.UpdateUserContext(ctx, patch)
 }
 
@@ -40,17 +44,25 @@ func (uc *UserTelegramContextUsecase) ChangeState(ctx context.Context, state str
 	patch := domain.UserTelegramContextPatch{
 		State: &state,
 	}
+
+	if err := patch.Validate(); err != nil {
+		return nil, err
+	}
 	return uc.userTelegramContext.UpdateUserContext(ctx, patch)
 }
 
 func (uc *UserTelegramContextUsecase) CloseConversation(ctx context.Context) (*domain.UserTelegramContext, error) {
-	var zeroInt int = 0
-	var zeroInt64 int64 = 0
+	var zeroInt int
+	var zeroInt64 int64
 	patch := domain.UserTelegramContextPatch{
 		Conversation:         &rootConversation,
 		State:                &rootState,
 		InteractionChatID:    &zeroInt64,
 		InteractionMessageID: &zeroInt,
+	}
+
+	if err := patch.Validate(); err != nil {
+		return nil, err
 	}
 	return uc.userTelegramContext.UpdateUserContext(ctx, patch)
 }
